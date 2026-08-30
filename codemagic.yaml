@@ -30,6 +30,7 @@ workflows:
           plutil -replace ITSAppUsesNonExemptEncryption -bool NO "$PLIST"
           plutil -replace UISupportedInterfaceOrientations -json '["UIInterfaceOrientationLandscapeLeft","UIInterfaceOrientationLandscapeRight"]' "$PLIST"
           plutil -replace "UISupportedInterfaceOrientations~ipad" -json '["UIInterfaceOrientationLandscapeLeft","UIInterfaceOrientationLandscapeRight"]' "$PLIST"
+          plutil -replace UIRequiresFullScreen -bool YES "$PLIST"
           plutil -replace CFBundleDisplayName -string "GRID HUNTER" "$PLIST"
           plutil -replace GADApplicationIdentifier -string "ca-app-pub-7792368657314009~5286478048" "$PLIST"
           plutil -replace NSUserTrackingUsageDescription -string "広告をあなたに関連性の高い内容にするために使用します。許可しなくてもゲームはすべて無料で遊べます。" "$PLIST"
