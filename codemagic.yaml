@@ -1,0 +1,54 @@
+# Codemagic CI/CD 設定 (GRID HUNTER / Capacitor 7)
+# Macなしでクラウド上のMacでiOSビルド〜App Store Connectアップロードまで行う。
+workflows:
+  ios-release:
+    name: iOS Release (App Store)
+    max_build_duration: 45
+    integrations:
+      app_store_connect: codemagic
+    environment:
+      node: 20
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.konishi.gridhunter
+      vars:
+        APP_APPLE_ID: 6806726004
+    scripts:
+      - name: npmパッケージ取得
+        script: npm install
+      - name: iOSプラットフォーム生成
+        script: npx cap add ios
+      - name: アイコンとスプラッシュ生成
+        script: npx @capacitor/assets generate --ios --iconBackgroundColor '#0d0d16' --splashBackgroundColor '#0d0d16'
+      - name: Capacitor同期
+        script: npx cap sync ios
+      - name: Info.plist調整(暗号化申告・横画面固定・AdMob/ATT)
+        script: |
+          PLIST=ios/App/App/Info.plist
+          plutil -replace ITSAppUsesNonExemptEncryption -bool NO "$PLIST"
+          plutil -replace UISupportedInterfaceOrientations -json '["UIInterfaceOrientationLandscapeLeft","UIInterfaceOrientationLandscapeRight"]' "$PLIST"
+          plutil -replace "UISupportedInterfaceOrientations~ipad" -json '["UIInterfaceOrientationLandscapeLeft","UIInterfaceOrientationLandscapeRight"]' "$PLIST"
+          plutil -replace CFBundleDisplayName -string "GRID HUNTER" "$PLIST"
+          plutil -replace GADApplicationIdentifier -string "ca-app-pub-7792368657314009~5286478048" "$PLIST"
+          plutil -replace NSUserTrackingUsageDescription -string "広告をあなたに関連性の高い内容にするために使用します。許可しなくてもゲームはすべて無料で遊べます。" "$PLIST"
+          plutil -replace SKAdNetworkItems -json '[{"SKAdNetworkIdentifier":"cstr6suwn9.skadnetwork"}]' "$PLIST"
+      - name: ビルド番号を自動採番
+        script: |
+          cd ios/App
+          BUILD_NUMBER=$(($(app-store-connect get-latest-testflight-build-number "$APP_APPLE_ID" 2>/dev/null || echo 0) + 1))
+          agvtool new-version -all $BUILD_NUMBER
+          agvtool new-marketing-version 1.0
+      - name: 署名設定を適用
+        script: xcode-project use-profiles
+      - name: IPAをビルド
+        script: xcode-project build-ipa --workspace ios/App/App.xcworkspace --scheme App
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        # TestFlight外部テスト提出は行わない(App Store審査用のアップロードのみ)
+        submit_to_testflight: false

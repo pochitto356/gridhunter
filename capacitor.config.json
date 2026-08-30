@@ -1,0 +1,10 @@
+{
+  "appId": "com.konishi.gridhunter",
+  "appName": "GRID HUNTER",
+  "webDir": "www",
+  "backgroundColor": "#0d0d16",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0d0d16"
+  }
+}
