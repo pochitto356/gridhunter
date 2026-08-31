@@ -55,7 +55,8 @@
   canvas {
     display:block; background:#14141f;
     border:1px solid #2c2c44; border-radius:10px;
-    max-width:96vw; height:auto;
+    width:auto; height:auto;
+    max-width:98vw; max-height:calc(100dvh - 86px);
     cursor:crosshair;
   }
   .overlay {
@@ -150,6 +151,42 @@
   body {
     padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
     padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right);
+  }
+  /* 画面の高さが低い端末(iPhone横持ちなど)ではHUDを小さくして盤面を優先する */
+  @media (max-height: 470px) {
+    #wrap { gap:3px; }
+    #hud { padding:3px 8px; font-size:12px; border-radius:8px; }
+    #hearts { font-size:14px; min-width:104px; letter-spacing:1px; }
+    #right { min-width:104px; gap:6px; }
+    #score { font-size:17px; }
+    #combo { font-size:10px; height:12px; }
+    #wave { font-size:13px; }
+    #timer { font-size:13px; min-width:52px; }
+    button.ctl { padding:2px 6px; font-size:11px; }
+    #stats { font-size:10px; gap:4px; }
+    .chip { padding:1px 6px; border-radius:5px; }
+    .overlay h1 { font-size:30px; letter-spacing:2px; }
+    .overlay h2 { font-size:26px; }
+    .overlay .sub { font-size:12px; margin:6px 0 2px; }
+    .overlay .desc { font-size:11px; line-height:1.6; margin:6px 0; }
+    .bigbtn { margin-top:6px; padding:7px 26px; font-size:14px; }
+    #achPanel { max-height:110px; padding:6px 8px; }
+    .overlay { padding:8px 10px; }
+    #modeRow { gap:6px; margin:2px 0 4px; flex-wrap:nowrap; }
+    .modeCard { padding:5px 8px; width:150px; border-width:1px; border-radius:8px; }
+    .modeCard b { font-size:12px; margin-bottom:1px; }
+    .modeCard small { font-size:9px; line-height:1.35; }
+    .modeBest { font-size:9px; margin-top:2px; min-height:11px; }
+    #curTitle { font-size:11px; margin-top:5px; min-height:13px; }
+    #achBtn { margin-top:5px; }
+    #shopRow { margin-top:6px; gap:6px; }
+    #shopRow .ctl { font-size:11px; padding:5px 10px; }
+    #overStats { font-size:12px; line-height:1.6; margin-top:2px; }
+    #overStats b { font-size:16px; }
+    #cardImg { width:min(230px, 52%); margin:5px 0 3px; }
+    #shareRow { margin:4px 0 1px; gap:6px; }
+    .ctl.share { font-size:11px; padding:5px 9px; }
+    #over .bigbtn { margin-top:5px; padding:7px 22px; }
   }
 </style>
 </head>
@@ -1697,6 +1734,31 @@ document.getElementById('shareBtn').addEventListener('click', function () {
     navigator.clipboard.writeText(text).then(function () { addToast('スコアをコピーしました!'); }).catch(function () {});
   }
 });
+// ---- 画面サイズに合わせて盤面を収める(iPhone横持ちで上下が見切れないように) ----
+function fitCanvas() {
+  try {
+    var cvEl = document.getElementById('cv');
+    var hudEl = document.getElementById('hud');
+    var statsEl = document.getElementById('stats');
+    var bodyStyle = window.getComputedStyle(document.body);
+    var padV = (parseFloat(bodyStyle.paddingTop) || 0) + (parseFloat(bodyStyle.paddingBottom) || 0);
+    var padH = (parseFloat(bodyStyle.paddingLeft) || 0) + (parseFloat(bodyStyle.paddingRight) || 0);
+    var vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    var vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+    var used = (hudEl ? hudEl.offsetHeight : 0) + (statsEl ? statsEl.offsetHeight : 0) + 18;
+    var availH = vh - padV - used;
+    var availW = vw - padH - 8;
+    if (availH < 80 || availW < 80) return;
+    var scale = Math.min(availW / 874, availH / 598, 1);
+    cvEl.style.width = Math.floor(874 * scale) + 'px';
+    cvEl.style.height = Math.floor(598 * scale) + 'px';
+  } catch (e) {}
+}
+window.addEventListener('resize', fitCanvas);
+window.addEventListener('orientationchange', function () { setTimeout(fitCanvas, 250); });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitCanvas);
+fitCanvas();
+setTimeout(fitCanvas, 300);
 if (IS_TOUCH) {
   document.getElementById('ctlLine').innerHTML = '<b>画面をドラッグして移動</b> — 照準と攻撃は自動!(横画面推奨)';
 }
@@ -1731,6 +1793,7 @@ var MZ = {
         try {
           AdMob.addListener('bannerAdSizeChanged', function (info) {
             document.body.style.paddingBottom = ((info && info.height) ? info.height : 60) + 'px';
+            if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 50);
           });
         } catch (e) {}
         return AdMob.showBanner({
@@ -1747,6 +1810,7 @@ var MZ = {
     var AdMob = this.admob();
     if (AdMob) { try { AdMob.removeBanner().catch(function () {}); } catch (e) {} }
     document.body.style.paddingBottom = '';
+    if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 50);
   },
   markRemoved: function () {
     if (this.adsRemoved) return;
