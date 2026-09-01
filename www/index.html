@@ -359,11 +359,12 @@ window.addEventListener('mouseup', function () { mouse.down = false; });
 cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 window.addEventListener('blur', function () { keys = {}; mouse.down = false; });
 
-// ---- タッチ操作(スマホ: バーチャルスティック+自動照準) ----
+// ---- タッチ操作(スマホ: 左手=移動スティック / 右手=照準スティック) ----
 var IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 var inputMode = 'mouse'; // 'mouse' | 'touch' 最後に使われた入力
-var vstick = { active: false, id: null, bx: 0, by: 0, dx: 0, dy: 0 };
-cv.addEventListener('mousemove', function () { if (!vstick.active) inputMode = 'mouse'; });
+var vstick = { active: false, id: null, bx: 0, by: 0, dx: 0, dy: 0 }; // 左: 移動
+var astick = { active: false, id: null, bx: 0, by: 0, dx: 0, dy: 0 }; // 右: 照準・攻撃
+cv.addEventListener('mousemove', function () { if (!vstick.active && !astick.active) inputMode = 'mouse'; });
 function touchPos(t) {
   var r = cv.getBoundingClientRect();
   return { x: (t.clientX - r.left) * (W / r.width), y: (t.clientY - r.top) * (H / r.height) };
@@ -373,29 +374,44 @@ cv.addEventListener('touchstart', function (e) {
   inputMode = 'touch';
   initAudio();
   if (AC && AC.state === 'suspended') AC.resume();
-  if (vstick.active) return;
-  var t = e.changedTouches[0];
-  var p = touchPos(t);
-  vstick.active = true; vstick.id = t.identifier;
-  vstick.bx = p.x; vstick.by = p.y; vstick.dx = 0; vstick.dy = 0;
+  for (var i = 0; i < e.changedTouches.length; i++) {
+    var t = e.changedTouches[i];
+    var p = touchPos(t);
+    if (p.x < W / 2) {
+      if (vstick.active) continue;
+      vstick.active = true; vstick.id = t.identifier;
+      vstick.bx = p.x; vstick.by = p.y; vstick.dx = 0; vstick.dy = 0;
+    } else {
+      if (astick.active) continue;
+      astick.active = true; astick.id = t.identifier;
+      astick.bx = p.x; astick.by = p.y; astick.dx = 0; astick.dy = 0;
+    }
+  }
 }, { passive: false });
 cv.addEventListener('touchmove', function (e) {
   e.preventDefault();
+  var max = 55;
   for (var i = 0; i < e.changedTouches.length; i++) {
     var t = e.changedTouches[i];
-    if (!vstick.active || t.identifier !== vstick.id) continue;
     var p = touchPos(t);
-    var dx = p.x - vstick.bx, dy = p.y - vstick.by;
-    var len = Math.hypot(dx, dy), max = 55;
-    if (len > max) { dx = dx / len * max; dy = dy / len * max; }
-    vstick.dx = dx; vstick.dy = dy;
+    if (vstick.active && t.identifier === vstick.id) {
+      var dx = p.x - vstick.bx, dy = p.y - vstick.by;
+      var len = Math.hypot(dx, dy);
+      if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+      vstick.dx = dx; vstick.dy = dy;
+    } else if (astick.active && t.identifier === astick.id) {
+      var adx = p.x - astick.bx, ady = p.y - astick.by;
+      var alen = Math.hypot(adx, ady);
+      if (alen > max) { adx = adx / alen * max; ady = ady / alen * max; }
+      astick.dx = adx; astick.dy = ady;
+    }
   }
 }, { passive: false });
 function endTouch(e) {
   for (var i = 0; i < e.changedTouches.length; i++) {
-    if (vstick.active && e.changedTouches[i].identifier === vstick.id) {
-      vstick.active = false; vstick.dx = 0; vstick.dy = 0;
-    }
+    var id = e.changedTouches[i].identifier;
+    if (vstick.active && id === vstick.id) { vstick.active = false; vstick.dx = 0; vstick.dy = 0; }
+    if (astick.active && id === astick.id) { astick.active = false; astick.dx = 0; astick.dy = 0; }
   }
 }
 cv.addEventListener('touchend', endTouch);
@@ -1123,12 +1139,9 @@ function update() {
     moveEntity(player, vstick.dx / vl * vsp, vstick.dy / vl * vsp);
   }
   if (inputMode === 'touch') {
-    var tgt = autoTarget();
-    if (tgt) {
-      player.angle = Math.atan2(tgt.y - player.y, tgt.x - player.x);
-      tryShoot(); // タッチ時は自動連射
-    } else if (vstick.active && (vstick.dx || vstick.dy)) {
-      player.angle = Math.atan2(vstick.dy, vstick.dx);
+    if (astick.active && (astick.dx || astick.dy)) {
+      player.angle = Math.atan2(astick.dy, astick.dx);
+      tryShoot(); // 右スティックで狙った方向へ弾は出っぱなし(自動連射)
     }
   } else {
     player.angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
@@ -1657,13 +1670,21 @@ function draw() {
 
   ctx.restore();
 
-  // バーチャルスティック(タッチ操作時)
+  // バーチャルスティック(タッチ操作時: 左=移動 / 右=照準)
   if (vstick.active) {
     ctx.globalAlpha = 0.22;
     ctx.fillStyle = '#9ad8ff';
     ctx.beginPath(); ctx.arc(vstick.bx, vstick.by, 48, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 0.5;
     ctx.beginPath(); ctx.arc(vstick.bx + vstick.dx, vstick.by + vstick.dy, 22, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  if (astick.active) {
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = '#ff9a9a';
+    ctx.beginPath(); ctx.arc(astick.bx, astick.by, 48, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath(); ctx.arc(astick.bx + astick.dx, astick.by + astick.dy, 22, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
   }
 }
@@ -1760,7 +1781,7 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', fitC
 fitCanvas();
 setTimeout(fitCanvas, 300);
 if (IS_TOUCH) {
-  document.getElementById('ctlLine').innerHTML = '<b>画面をドラッグして移動</b> — 照準と攻撃は自動!(横画面推奨)';
+  document.getElementById('ctlLine').innerHTML = '<b>左半分ドラッグ=移動 / 右半分ドラッグ=狙う(弾は自動発射)</b>(横画面推奨)';
 }
 updateHearts(); updateStatChips(); updateTitleDisplay();
 // ---- 収益化: AdMobバナー + 広告削除アプリ内課金(ネイティブ時のみ) ----
