@@ -87,6 +87,26 @@
     font-size:46px; letter-spacing:6px; font-weight:800; color:var(--gh-cyan);
     text-shadow:0 0 6px rgba(48,230,255,.9), 0 0 24px rgba(48,230,255,.55), 0 0 60px rgba(48,230,255,.25);
   }
+  #logoImg { width:min(380px, 70%); height:auto; filter:drop-shadow(0 0 14px rgba(48,230,255,.45)); margin-bottom:2px; }
+  #warnImg, #gbImg {
+    position:absolute; left:50%; top:30%; transform:translate(-50%,-50%); z-index:6;
+    width:min(420px, 60%); height:auto; opacity:0; pointer-events:none;
+  }
+  #warnImg.show { animation:warnAnim 2.2s ease-out forwards; }
+  @keyframes warnAnim {
+    0% { opacity:0; transform:translate(-50%,-50%) scale(.7); }
+    10% { opacity:1; transform:translate(-50%,-50%) scale(1.05); }
+    20% { opacity:.35; } 30% { opacity:1; } 40% { opacity:.35; } 50% { opacity:1; } 60% { opacity:.35; } 70% { opacity:1; }
+    100% { opacity:0; transform:translate(-50%,-50%) scale(1); }
+  }
+  #gbImg.show { animation:gbAnim 1.6s ease-out forwards; }
+  @keyframes gbAnim {
+    0% { opacity:0; transform:translate(-50%,-50%) scale(.5); filter:brightness(2); }
+    15% { opacity:1; transform:translate(-50%,-50%) scale(1.1); filter:brightness(1.6); }
+    30% { transform:translate(-50%,-50%) scale(1); filter:brightness(1); }
+    75% { opacity:1; }
+    100% { opacity:0; transform:translate(-50%,-50%) scale(1.06); }
+  }
   .overlay h2 { font-size:34px; color:var(--gh-red); letter-spacing:3px; text-shadow:0 0 6px rgba(255,59,59,.8), 0 0 24px rgba(255,59,59,.4); }
   .overlay .sub { margin:10px 0 4px; color:var(--gh-yellow); font-size:15px; letter-spacing:2px; }
   .overlay .desc { color:#9ab; font-size:13px; line-height:1.9; margin:12px 0; }
@@ -197,14 +217,18 @@
     #stats { font-size:10px; gap:4px; }
     .chip { padding:1px 8px; }
     .overlay h1 { font-size:30px; letter-spacing:2px; }
+    #logoImg { width:min(180px, 40%); margin-bottom:0; }
+    .descPow { display:none; }
+    .overlay .sub { margin:2px 0 0; }
+    #warnImg, #gbImg { width:min(300px, 55%); }
     .overlay h2 { font-size:26px; }
     .overlay .sub { font-size:12px; margin:6px 0 2px; }
     .overlay .desc { font-size:11px; line-height:1.6; margin:6px 0; }
-    .bigbtn { margin-top:6px; padding:7px 26px; font-size:14px; }
+    .bigbtn { margin-top:4px; padding:6px 24px; font-size:14px; }
     #achPanel { max-height:110px; padding:6px 8px; }
     .overlay { padding:8px 10px; }
-    #modeRow { gap:6px; margin:2px 0 4px; flex-wrap:nowrap; }
-    .modeCard { padding:5px 8px; width:150px; }
+    #modeRow { gap:6px; margin:2px 0 2px; flex-wrap:nowrap; }
+    .modeCard { padding:4px 8px; width:150px; }
     .modeCard b { font-size:12px; margin-bottom:1px; }
     .modeCard small { font-size:9px; line-height:1.35; }
     .modeBest { font-size:9px; margin-top:2px; min-height:11px; }
@@ -239,14 +263,16 @@
   <div id="stage">
     <canvas id="cv" width="874" height="598"></canvas>
     <div id="banner"></div>
+    <img id="warnImg" src="img/warning.png" alt="WARNING">
+    <img id="gbImg" src="img/gridbreak.png" alt="GRID BREAK">
     <div id="toasts"></div>
     <div id="title" class="overlay">
-      <h1>GRID HUNTER</h1>
+      <img id="logoImg" src="img/logo.png" alt="GRID HUNTER">
       <div class="sub">グリッドを支配せよ。</div>
       <div class="desc">
         <span id="ctlLine"><span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span> / 矢印キーで移動 &nbsp;|&nbsp; <b>マウスで狙って クリック長押しで連射</b></span><br>
-        茶色いブロックを壊すとパワーアップアイテムが出現!<br>
-        <b style="color:#ff8c5e">P</b>=火力 &nbsp;<b style="color:#ffd75e">R</b>=連射 &nbsp;<b style="color:#ffa02e">M</b>=拡散 &nbsp;<b style="color:#5eb0ff">S</b>=速度 &nbsp;<b style="color:#c58cff">&#8623;</b>=貫通 &nbsp;<b style="color:#ff6d8d">&#9829;</b>=回復 &nbsp;<b style="color:#7ee8ff">&#9672;</b>=シールド &nbsp;<b style="color:#8dff6d">&#9762;</b>=全体爆破<br>
+        <span class="descPow">茶色いブロックを壊すとパワーアップアイテムが出現!<br>
+        <b style="color:#ff8c5e">P</b>=火力 &nbsp;<b style="color:#ffd75e">R</b>=連射 &nbsp;<b style="color:#ffa02e">M</b>=拡散 &nbsp;<b style="color:#5eb0ff">S</b>=速度 &nbsp;<b style="color:#c58cff">&#8623;</b>=貫通 &nbsp;<b style="color:#ff6d8d">&#9829;</b>=回復 &nbsp;<b style="color:#7ee8ff">&#9672;</b>=シールド &nbsp;<b style="color:#8dff6d">&#9762;</b>=全体爆破<br></span>
         連続キルで<b>コンボ倍率</b>アップ。モードを選んで挑戦しよう!
       </div>
       <div id="modeRow">
@@ -634,6 +660,30 @@ function showBanner(text) {
   void b.offsetWidth;
   b.classList.add('show');
 }
+// ---- Production Kit 素材(透過PNG) ----
+var SPR = {};
+['orbitron', 'divider', 'destroyer'].forEach(function (n) {
+  var im = new Image(); im.src = 'img/' + n + '.png'; SPR[n] = im;
+});
+var BOSS_SKINS = [
+  { key: 'orbitron',  name: 'ORBITRON',       scale: 3.3, spin: 0.02 },
+  { key: 'divider',   name: 'DIVIDER',        scale: 3.0, spin: -0.015 },
+  { key: 'destroyer', name: 'GRID DESTROYER', scale: 3.1, spin: 0 }
+];
+function bossSkinForWave(w) { return BOSS_SKINS[(Math.max(1, Math.round(w / 5)) - 1) % BOSS_SKINS.length]; }
+function replayOverlay(id) {
+  var el = document.getElementById(id);
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+}
+function showWarning() { replayOverlay('warnImg'); }
+var gbCooldown = 0;
+function showGridBreak() {
+  if (gbCooldown > 0) return;
+  gbCooldown = 90;
+  replayOverlay('gbImg');
+  G.flash = Math.max(G.flash, 0.6);
+  G.shake = Math.max(G.shake, 12);
+}
 
 // ================= アイテム =================
 var ITEM_DEFS = [
@@ -712,6 +762,7 @@ function applyItem(it) {
 function doNuke() {
   SFX.nuke();
   G.shake = 26; G.flash = 1;
+  gbCooldown = 0; showGridBreak();
   for (var i = 0; i < enemies.length; i++) {
     damageEnemy(enemies[i], 25, true);
   }
@@ -857,6 +908,7 @@ function trySpawnFromQueue() {
   var cell = findSpawnCell();
   if (!cell) { G.spawnTimer = 20; return; }
   var type = G.spawnQueue.shift();
+  if (type === 'boss') { showWarning(); SFX.wave(); }
   spawnMarks.push({ x: cell.x, y: cell.y, t: 50, type: type });
   G.spawnTimer = Math.max(10, 42 - G.wave * 2);
 }
@@ -871,7 +923,8 @@ function spawnEnemy(type, x, y) {
     color: d.color, score: d.score, dmg: d.dmg,
     wanderT: 0, wa: 0, shootT: rand(60, 130), hitT: 0,
     bombT: rand(90, 160),
-    kx: 0, ky: 0
+    kx: 0, ky: 0,
+    skin: type === 'boss' ? bossSkinForWave(G.wave) : null, rot: 0
   });
 }
 // ---- 爆弾 ----
@@ -924,7 +977,8 @@ function damageEnemy(e, dmg, silent) {
     G.combo++;
     G.comboT = 180;
     if (G.combo > runStats.maxCombo) runStats.maxCombo = G.combo;
-    if (e.type === 'boss') runStats.bossKills++;
+    if (e.type === 'boss') { runStats.bossKills++; showGridBreak(); }
+    if (G.combo === 50) showGridBreak();
     var gain = Math.round(e.score * comboMult());
     G.score += gain;
     addFloat(e.x, e.y - e.r - 6, '+' + gain, '#ffd75e');
@@ -1147,6 +1201,7 @@ function update() {
   if (G.shake > 0) G.shake *= 0.88;
   if (G.shake < 0.4) G.shake = 0;
   if (G.flash > 0) G.flash -= 0.04;
+  if (gbCooldown > 0) gbCooldown--;
 
   if (G.state !== 'play') {
     updateParticlesOnly();
@@ -1573,6 +1628,16 @@ function draw() {
       ctx.arc(Math.cos(ba - 0.5) * e.r * 0.45, Math.sin(ba - 0.5) * e.r * 0.45, 2.6, 0, Math.PI * 2);
       ctx.arc(Math.cos(ba + 0.5) * e.r * 0.45, Math.sin(ba + 0.5) * e.r * 0.45, 2.6, 0, Math.PI * 2);
       ctx.fill();
+    } else if (e.type === 'boss' && e.skin && SPR[e.skin.key] && SPR[e.skin.key].complete && SPR[e.skin.key].naturalWidth) {
+      var im = SPR[e.skin.key], sz = e.r * e.skin.scale;
+      e.rot += e.skin.spin;
+      ctx.rotate(e.rot);
+      if (e.hitT > 0) { ctx.filter = 'brightness(1.8)'; }
+      ctx.drawImage(im, -sz / 2, -sz / 2, sz, sz);
+      ctx.filter = 'none';
+      ctx.rotate(-e.rot);
+      ctx.strokeStyle = 'rgba(255,59,59,' + (0.35 + 0.25 * Math.sin(G.frame * 0.15)) + ')'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, e.r + 8, 0, Math.PI * 2); ctx.stroke();
     } else if (e.type === 'tank' || e.type === 'boss') {
       ctx.beginPath();
       for (var hx = 0; hx < 6; hx++) {
@@ -1598,8 +1663,8 @@ function draw() {
       ctx.fill();
     }
     ctx.restore();
-    // HPバー
-    if (e.hp < e.maxHp) {
+    // HPバー(ボスは画面上部の専用バーを使う)
+    if (e.hp < e.maxHp && !(e.type === 'boss' && e.skin)) {
       var bw = e.r * 2;
       ctx.fillStyle = 'rgba(0,0,0,0.5)';
       ctx.fillRect(e.x - bw / 2, e.y - e.r - 9, bw, 4);
@@ -1706,6 +1771,33 @@ function draw() {
   }
 
   ctx.restore();
+
+  // ボスHPバー(Production Kit: シアン枠・赤ゲージ)
+  for (var bi = 0; bi < enemies.length; bi++) {
+    var be = enemies[bi];
+    if (be.type !== 'boss' || be.dead) continue;
+    var bw2 = 320, bh2 = 12, bx2 = (W - bw2) / 2, by2 = 12;
+    ctx.save();
+    ctx.fillStyle = 'rgba(5,10,18,0.85)';
+    ctx.fillRect(bx2 - 4, by2 - 4, bw2 + 8, bh2 + 8);
+    ctx.strokeStyle = '#30E6FF'; ctx.lineWidth = 1;
+    ctx.shadowColor = '#30E6FF'; ctx.shadowBlur = 6;
+    ctx.strokeRect(bx2 - 4.5, by2 - 4.5, bw2 + 9, bh2 + 9);
+    ctx.shadowBlur = 0;
+    var ratio = Math.max(0, be.hp / be.maxHp);
+    var grad = ctx.createLinearGradient(bx2, 0, bx2 + bw2, 0);
+    grad.addColorStop(0, '#FF3B3B'); grad.addColorStop(1, '#FF6B3D');
+    ctx.fillStyle = grad;
+    ctx.fillRect(bx2, by2, bw2 * ratio, bh2);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(bx2, by2, bw2 * ratio, 3);
+    ctx.fillStyle = '#30E6FF'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(be.skin ? be.skin.name : 'BOSS', bx2, by2 + bh2 + 14);
+    ctx.textAlign = 'right'; ctx.fillStyle = '#dff';
+    ctx.fillText(Math.ceil(be.hp) + ' / ' + be.maxHp, bx2 + bw2, by2 + bh2 + 14);
+    ctx.restore();
+    break;
+  }
 
   // バーチャルスティック(タッチ操作時: 左=移動 / 右=照準)
   if (vstick.active) {
