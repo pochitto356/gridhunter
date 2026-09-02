@@ -147,7 +147,41 @@
   .ctl.share { font-size:14px; padding:8px 14px; }
   #over .bigbtn { margin-top:10px; padding:10px 36px; }
   #curTitle { color:var(--gh-cyan); font-size:13px; margin-top:10px; min-height:16px; }
-  #achBtn { margin-top:8px; }
+  #titleBtns { display:flex; gap:8px; margin-top:8px; justify-content:center; flex-wrap:wrap; }
+  /* パネルを開いているときはタイトルの他の要素を隠して全高を使う */
+  #title.panelMode #logoImg,
+  #title.panelMode .sub,
+  #title.panelMode .desc,
+  #title.panelMode #modeRow,
+  #title.panelMode #startBtn,
+  #title.panelMode #curTitle,
+  #title.panelMode #shopRow { display:none !important; }
+  #title.panelMode #achPanel, #title.panelMode #ctlPanel { max-height:none; }
+  #title.panelMode { justify-content:flex-start; padding-top:10px; }
+  .panelTitle { color:var(--gh-cyan); font-size:14px; font-weight:700; letter-spacing:2px; margin-bottom:6px; }
+  /* バーチャルスティック(DOM描画・盤面の外に出せる) */
+  #pads { position:fixed; inset:0; z-index:9; pointer-events:none; }
+  .padBase {
+    position:absolute; border-radius:50%; border:2px solid var(--gh-cyan);
+    box-shadow:0 0 10px currentColor; display:none;
+    transition:opacity .12s linear;
+  }
+  .padKnob { position:absolute; border-radius:50%; display:none; box-shadow:0 0 12px rgba(255,255,255,.35); }
+  /* 操作設定パネル */
+  #ctlPanel {
+    width:min(560px, 94%); margin-top:8px; padding:8px 12px; text-align:left;
+    background:var(--gh-panel); border:1px solid var(--gh-line); border-radius:4px;
+    box-shadow:inset 0 0 0 2px var(--gh-bg), inset 0 0 0 3px rgba(48,230,255,.2);
+  }
+  .setRow { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:5px 2px; font-size:12px; color:#9bc; }
+  .segs { display:flex; gap:4px; flex-wrap:wrap; }
+  .seg {
+    background:var(--gh-panel2); color:#9ab; border:1px solid var(--gh-line); border-radius:0;
+    clip-path:var(--gh-cut); padding:4px 10px; font-size:11px; cursor:pointer;
+  }
+  .seg.on { color:var(--gh-cyan); border-color:var(--gh-cyan); box-shadow:inset 0 0 8px rgba(48,230,255,.25); }
+  .setNote { color:#678; font-size:10px; padding:4px 2px 0; line-height:1.6; }
+  #achBtn { }
   #achPanel {
     max-height:190px; overflow-y:auto; width:min(540px, 92%);
     background:var(--gh-panel); border:1px solid var(--gh-line); border-radius:4px;
@@ -233,7 +267,11 @@
     .modeCard small { font-size:9px; line-height:1.35; }
     .modeBest { font-size:9px; margin-top:2px; min-height:11px; }
     #curTitle { font-size:11px; margin-top:5px; min-height:13px; }
-    #achBtn { margin-top:5px; }
+    #titleBtns { margin-top:5px; gap:6px; }
+    #ctlPanel { max-height:120px; overflow-y:auto; padding:5px 8px; margin-top:5px; }
+    .setRow { font-size:10px; padding:3px 2px; }
+    .seg { font-size:9px; padding:3px 7px; }
+    .setNote { font-size:9px; }
     #shopRow { margin-top:6px; gap:6px; }
     #shopRow .ctl { font-size:11px; padding:5px 10px; }
     #overStats { font-size:12px; line-height:1.6; margin-top:2px; }
@@ -289,8 +327,41 @@
       </div>
       <button class="bigbtn" id="startBtn">START</button>
       <div id="curTitle"></div>
-      <button class="ctl" id="achBtn">&#127942; 実績一覧</button>
+      <div id="titleBtns">
+        <button class="ctl" id="achBtn">&#127942; 実績一覧</button>
+        <button class="ctl" id="ctlBtn">&#9881; 操作設定</button>
+      </div>
       <div id="achPanel" class="hidden"></div>
+      <div id="ctlPanel" class="hidden">
+        <div class="panelTitle">&#9881; 操作設定</div>
+        <div class="setRow"><span>スティックの位置</span>
+          <span class="segs" data-set="mode">
+            <button class="seg" data-v="edge">画面の端に固定</button>
+            <button class="seg" data-v="float">触れた場所に出す</button>
+          </span>
+        </div>
+        <div class="setRow"><span>左右の割り当て</span>
+          <span class="segs" data-set="swap">
+            <button class="seg" data-v="0">左=移動 / 右=狙う</button>
+            <button class="seg" data-v="1">左=狙う / 右=移動</button>
+          </span>
+        </div>
+        <div class="setRow"><span>大きさ</span>
+          <span class="segs" data-set="size">
+            <button class="seg" data-v="s">小</button>
+            <button class="seg" data-v="m">中</button>
+            <button class="seg" data-v="l">大</button>
+          </span>
+        </div>
+        <div class="setRow"><span>濃さ</span>
+          <span class="segs" data-set="alpha">
+            <button class="seg" data-v="0.25">薄い</button>
+            <button class="seg" data-v="0.4">普通</button>
+            <button class="seg" data-v="0.65">濃い</button>
+          </span>
+        </div>
+        <div class="setNote">スティックは盤面の外(左右の黒い部分)に出ます。プレイ中はどこを触っても操作できます。</div>
+      </div>
       <div id="shopRow" class="hidden">
         <button class="ctl" id="buyRemoveAdsBtn">&#128683; 広告を削除</button>
         <button class="ctl" id="restoreBtn">購入を復元</button>
@@ -323,6 +394,12 @@
     <span class="chip">&#8623; 貫通 <b id="stPrc">0</b></span>
     <span class="chip">&#128128; 撃破 <b id="stKill">0</b></span>
   </div>
+</div>
+
+<!-- バーチャルスティック(盤面の外に描画するので敵が隠れない) -->
+<div id="pads">
+  <div class="padBase" id="padLBase"></div><div class="padKnob" id="padLKnob"></div>
+  <div class="padBase" id="padRBase"></div><div class="padKnob" id="padRKnob"></div>
 </div>
 
 <script>
@@ -417,52 +494,116 @@ cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 window.addEventListener('blur', function () { keys = {}; mouse.down = false; });
 
 // ---- タッチ操作(スマホ: 左手=移動スティック / 右手=照準スティック) ----
+// スティックは画面(DOM)側に描画するため、盤面の外(左右の黒い余白)でも操作できる。
 var IS_TOUCH = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 var inputMode = 'mouse'; // 'mouse' | 'touch' 最後に使われた入力
-var vstick = { active: false, id: null, bx: 0, by: 0, dx: 0, dy: 0 }; // 左: 移動
-var astick = { active: false, id: null, bx: 0, by: 0, dx: 0, dy: 0 }; // 右: 照準・攻撃
+var vstick = { active: false, id: null, bx: 0, by: 0, dx: 0, dy: 0 }; // 移動
+var astick = { active: false, id: null, bx: 0, by: 0, dx: 0, dy: 0 }; // 照準・攻撃
 cv.addEventListener('mousemove', function () { if (!vstick.active && !astick.active) inputMode = 'mouse'; });
-function touchPos(t) {
+
+// ---- 操作設定(プレイヤーがカスタマイズできる) ----
+var CTL = { mode: 'edge', swap: false, size: 'm', alpha: 0.4 };
+var CTL_SIZES = { s: 46, m: 58, l: 72 }; // スティックの外周半径(画面px)
+function stickR() { return CTL_SIZES[CTL.size] || CTL_SIZES.m; }
+function stickMax() { return stickR() * 0.62; }        // ノブが動ける距離
+function stickDead() { return stickR() * 0.30; }        // 最大入力とみなす距離
+
+// 固定モードのときのスティック中心(fitCanvasで再計算)
+var anchorL = { x: 70, y: 300 }, anchorR = { x: 700, y: 300 };
+function updateAnchors() {
   var r = cv.getBoundingClientRect();
-  return { x: (t.clientX - r.left) * (W / r.width), y: (t.clientY - r.top) * (H / r.height) };
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var pad = stickR() + 12;
+  var ly = r.top + r.height * 0.62, ry = ly;
+  // 盤面の左右に余白があればその中央、なければ画面端に寄せる
+  var lx = r.left > pad * 2 ? r.left / 2 : pad;
+  var rx = (vw - r.right) > pad * 2 ? r.right + (vw - r.right) / 2 : vw - pad;
+  anchorL = { x: lx, y: Math.min(vh - pad, ly) };
+  anchorR = { x: rx, y: Math.min(vh - pad, ry) };
+  if (CTL.swap) { var t = anchorL; anchorL = anchorR; anchorR = t; }
+  renderPads();
 }
-cv.addEventListener('touchstart', function (e) {
-  e.preventDefault();
-  inputMode = 'touch';
-  initAudio();
-  if (AC && AC.state === 'suspended') AC.resume();
+
+// ---- スティックのDOM描画 ----
+function padEl(id) { return document.getElementById(id); }
+function drawPad(id, st, anchor, isFixed, color) {
+  var base = padEl(id + 'Base'), knob = padEl(id + 'Knob');
+  var R = stickR(), show = st.active || (isFixed && IS_TOUCH && G.state === 'play');
+  if (!show) { base.style.display = 'none'; knob.style.display = 'none'; return; }
+  var cxp = isFixed ? anchor.x : st.bx, cyp = isFixed ? anchor.y : st.by;
+  base.style.display = 'block'; knob.style.display = 'block';
+  base.style.width = base.style.height = (R * 2) + 'px';
+  base.style.left = (cxp - R) + 'px'; base.style.top = (cyp - R) + 'px';
+  base.style.borderColor = color;
+  base.style.opacity = st.active ? CTL.alpha : CTL.alpha * 0.5;
+  var kr = R * 0.42;
+  knob.style.width = knob.style.height = (kr * 2) + 'px';
+  knob.style.left = (cxp + st.dx - kr) + 'px'; knob.style.top = (cyp + st.dy - kr) + 'px';
+  knob.style.background = color;
+  knob.style.opacity = st.active ? Math.min(1, CTL.alpha + 0.25) : CTL.alpha * 0.55;
+}
+function renderPads() {
+  if (!padEl('padLBase')) return;
+  var fixed = CTL.mode === 'edge';
+  drawPad('padL', vstick, anchorL, fixed, '#30E6FF');
+  drawPad('padR', astick, anchorR, fixed, '#FF6B3D');
+}
+
+// ---- タッチ入力 ----
+function isLeftSide(clientX) {
+  var half = window.innerWidth / 2;
+  return CTL.swap ? clientX >= half : clientX < half;
+}
+function stickFor(clientX) { return isLeftSide(clientX) ? vstick : astick; }
+function anchorFor(st) { return st === vstick ? anchorL : anchorR; }
+// UI(ボタンやオーバーレイ)へのタッチはゲーム操作にしない
+function isUiTarget(t) {
+  var el = t.target;
+  while (el && el !== document.body) {
+    if (el.tagName === 'BUTTON' || el.id === 'achPanel' || el.id === 'ctlPanel') return true;
+    el = el.parentNode;
+  }
+  return false;
+}
+window.addEventListener('touchstart', function (e) {
+  if (G.state !== 'play' || G.paused) return;
+  var used = false;
   for (var i = 0; i < e.changedTouches.length; i++) {
     var t = e.changedTouches[i];
-    var p = touchPos(t);
-    if (p.x < W / 2) {
-      if (vstick.active) continue;
-      vstick.active = true; vstick.id = t.identifier;
-      vstick.bx = p.x; vstick.by = p.y; vstick.dx = 0; vstick.dy = 0;
-    } else {
-      if (astick.active) continue;
-      astick.active = true; astick.id = t.identifier;
-      astick.bx = p.x; astick.by = p.y; astick.dx = 0; astick.dy = 0;
-    }
+    if (isUiTarget(t)) continue;
+    var st = stickFor(t.clientX);
+    if (st.active) continue;
+    st.active = true; st.id = t.identifier;
+    if (CTL.mode === 'edge') { var a = anchorFor(st); st.bx = a.x; st.by = a.y; }
+    else { st.bx = t.clientX; st.by = t.clientY; }
+    st.dx = 0; st.dy = 0;
+    // 固定モードは、最初のタッチ位置もそのまま入力として反映する
+    if (CTL.mode === 'edge') applyStick(st, t.clientX, t.clientY);
+    used = true;
+  }
+  if (used) {
+    e.preventDefault();
+    inputMode = 'touch';
+    initAudio();
+    if (AC && AC.state === 'suspended') AC.resume();
+    renderPads();
   }
 }, { passive: false });
-cv.addEventListener('touchmove', function (e) {
-  e.preventDefault();
-  var max = 55;
+function applyStick(st, cx, cy) {
+  var dx = cx - st.bx, dy = cy - st.by;
+  var len = Math.hypot(dx, dy), max = stickMax();
+  if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+  st.dx = dx; st.dy = dy;
+}
+window.addEventListener('touchmove', function (e) {
+  if (!vstick.active && !astick.active) return;
+  var moved = false;
   for (var i = 0; i < e.changedTouches.length; i++) {
     var t = e.changedTouches[i];
-    var p = touchPos(t);
-    if (vstick.active && t.identifier === vstick.id) {
-      var dx = p.x - vstick.bx, dy = p.y - vstick.by;
-      var len = Math.hypot(dx, dy);
-      if (len > max) { dx = dx / len * max; dy = dy / len * max; }
-      vstick.dx = dx; vstick.dy = dy;
-    } else if (astick.active && t.identifier === astick.id) {
-      var adx = p.x - astick.bx, ady = p.y - astick.by;
-      var alen = Math.hypot(adx, ady);
-      if (alen > max) { adx = adx / alen * max; ady = ady / alen * max; }
-      astick.dx = adx; astick.dy = ady;
-    }
+    if (vstick.active && t.identifier === vstick.id) { applyStick(vstick, t.clientX, t.clientY); moved = true; }
+    else if (astick.active && t.identifier === astick.id) { applyStick(astick, t.clientX, t.clientY); moved = true; }
   }
+  if (moved) { e.preventDefault(); renderPads(); }
 }, { passive: false });
 function endTouch(e) {
   for (var i = 0; i < e.changedTouches.length; i++) {
@@ -470,9 +611,10 @@ function endTouch(e) {
     if (vstick.active && id === vstick.id) { vstick.active = false; vstick.dx = 0; vstick.dy = 0; }
     if (astick.active && id === astick.id) { astick.active = false; astick.dx = 0; astick.dy = 0; }
   }
+  renderPads();
 }
-cv.addEventListener('touchend', endTouch);
-cv.addEventListener('touchcancel', endTouch);
+window.addEventListener('touchend', endTouch);
+window.addEventListener('touchcancel', endTouch);
 // 自動照準: 射線の通る最寄りの敵 → いなければ最寄りの敵 → いなければ近くのソフトブロック
 function losClear(x0, y0, x1, y1) {
   var d = Math.hypot(x1 - x0, y1 - y0), steps = Math.ceil(d / 12);
@@ -518,7 +660,7 @@ function loadSave() {
 function persistSave() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify({
-      bestScore: bestScore, bestTime: bestTime, ach: unlockedAch, muted: muted,
+      bestScore: bestScore, bestTime: bestTime, ach: unlockedAch, muted: muted, ctl: CTL,
       adsRemoved: (typeof MZ !== 'undefined' && MZ.adsRemoved) || false
     }));
   } catch (e) {}
@@ -1221,7 +1363,7 @@ function update() {
   }
   if (vstick.active && (vstick.dx || vstick.dy)) {
     var vl = Math.hypot(vstick.dx, vstick.dy);
-    var vsp = playerSpeed() * Math.min(1, vl / 28);
+    var vsp = playerSpeed() * Math.min(1, vl / stickDead());
     moveEntity(player, vstick.dx / vl * vsp, vstick.dy / vl * vsp);
   }
   if (inputMode === 'touch') {
@@ -1799,27 +1941,12 @@ function draw() {
     break;
   }
 
-  // バーチャルスティック(タッチ操作時: 左=移動 / 右=照準)
-  if (vstick.active) {
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = '#9ad8ff';
-    ctx.beginPath(); ctx.arc(vstick.bx, vstick.by, 48, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath(); ctx.arc(vstick.bx + vstick.dx, vstick.by + vstick.dy, 22, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  if (astick.active) {
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = '#ff9a9a';
-    ctx.beginPath(); ctx.arc(astick.bx, astick.by, 48, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.5;
-    ctx.beginPath(); ctx.arc(astick.bx + astick.dx, astick.by + astick.dy, 22, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
 }
 
 // ================= メインループ =================
+var _padState = '', _padPaused = false;
 function loop() {
+  if (G.state !== _padState || G.paused !== _padPaused) { _padState = G.state; _padPaused = G.paused; renderPads(); }
   if (!G.paused) {
     update();
     draw();
@@ -1861,6 +1988,7 @@ document.getElementById('pauseBtn').addEventListener('click', togglePause);
 document.getElementById('achBtn').addEventListener('click', function () {
   renderAchPanel();
   document.getElementById('achPanel').classList.toggle('hidden');
+  if (window._syncPanelMode) window._syncPanelMode();
 });
 document.getElementById('saveCardBtn').addEventListener('click', function () {
   if (!lastCardUrl) return;
@@ -1904,13 +2032,74 @@ function fitCanvas() {
     cvEl.style.height = Math.floor(598 * scale) + 'px';
   } catch (e) {}
 }
+function fitCanvasAndPads() { fitCanvas(); updateAnchors(); }
 window.addEventListener('resize', fitCanvas);
-window.addEventListener('orientationchange', function () { setTimeout(fitCanvas, 250); });
-if (window.visualViewport) window.visualViewport.addEventListener('resize', fitCanvas);
+window.addEventListener('orientationchange', function () { setTimeout(fitCanvasAndPads, 250); });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitCanvasAndPads);
+window.addEventListener('resize', updateAnchors);
 fitCanvas();
-setTimeout(fitCanvas, 300);
+setTimeout(fitCanvasAndPads, 300);
+
+// ---- 操作設定パネル ----
+function syncCtlPanel() {
+  var panel = document.getElementById('ctlPanel');
+  if (!panel) return;
+  var cur = { mode: CTL.mode, swap: CTL.swap ? '1' : '0', size: CTL.size, alpha: String(CTL.alpha) };
+  var groups = panel.querySelectorAll('.segs');
+  for (var i = 0; i < groups.length; i++) {
+    var key = groups[i].getAttribute('data-set');
+    var btns = groups[i].querySelectorAll('.seg');
+    for (var j = 0; j < btns.length; j++) {
+      var on = btns[j].getAttribute('data-v') === cur[key];
+      btns[j].classList.toggle('on', on);
+    }
+  }
+}
+(function bindCtlPanel() {
+  var panel = document.getElementById('ctlPanel');
+  if (!panel) return;
+  panel.addEventListener('click', function (e) {
+    var b = e.target;
+    if (!b.classList || !b.classList.contains('seg')) return;
+    var key = b.parentNode.getAttribute('data-set'), v = b.getAttribute('data-v');
+    if (key === 'mode') CTL.mode = v;
+    else if (key === 'swap') CTL.swap = (v === '1');
+    else if (key === 'size') CTL.size = v;
+    else if (key === 'alpha') CTL.alpha = parseFloat(v);
+    syncCtlPanel(); updateAnchors(); persistSave();
+    SFX.pickup();
+  });
+  function syncPanelMode() {
+    var t = document.getElementById('title');
+    var open = !document.getElementById('achPanel').classList.contains('hidden')
+            || !document.getElementById('ctlPanel').classList.contains('hidden');
+    t.classList.toggle('panelMode', open);
+    document.getElementById('ctlBtn').textContent = open ? '✕ 閉じる' : '⚙ 操作設定';
+    if (!open) { document.getElementById('ctlBtn').innerHTML = '&#9881; 操作設定'; }
+  }
+  var ab = document.getElementById('achBtn');
+  if (ab) ab.addEventListener('click', function () {
+    document.getElementById('ctlPanel').classList.add('hidden');
+    setTimeout(syncPanelMode, 0);
+  });
+  document.getElementById('ctlBtn').addEventListener('click', function () {
+    var p = document.getElementById('ctlPanel');
+    var wasOpen = !p.classList.contains('hidden');
+    var achOpen = !document.getElementById('achPanel').classList.contains('hidden');
+    if (wasOpen || achOpen) {
+      p.classList.add('hidden');
+      document.getElementById('achPanel').classList.add('hidden');
+    } else {
+      p.classList.remove('hidden');
+      syncCtlPanel(); updateAnchors();
+    }
+    syncPanelMode();
+    setTimeout(fitCanvasAndPads, 30);
+  });
+  window._syncPanelMode = syncPanelMode;
+})();
 if (IS_TOUCH) {
-  document.getElementById('ctlLine').innerHTML = '<b>左半分ドラッグ=移動 / 右半分ドラッグ=狙う(弾は自動発射)</b>(横画面推奨)';
+  document.getElementById('ctlLine').innerHTML = '<b>左ドラッグ=移動 / 右ドラッグ=狙う</b>(弾は自動発射)スティックは盤面の外に出ます';
 }
 updateHearts(); updateStatChips(); updateTitleDisplay();
 // ---- 収益化: AdMobバナー + 広告削除アプリ内課金(ネイティブ時のみ) ----
@@ -2020,6 +2209,14 @@ else { window.addEventListener('load', function () { MZ.init(); }); }
   if (s.bestTime !== undefined && s.bestTime !== null) bestTime = s.bestTime;
   if (s.ach) { for (var k in s.ach) { if (s.ach[k]) unlockedAch[k] = true; } }
   if (s.muted) toggleMute();
+  if (s.ctl) {
+    if (s.ctl.mode === 'edge' || s.ctl.mode === 'float') CTL.mode = s.ctl.mode;
+    CTL.swap = !!s.ctl.swap;
+    if (CTL_SIZES[s.ctl.size]) CTL.size = s.ctl.size;
+    if (typeof s.ctl.alpha === 'number') CTL.alpha = s.ctl.alpha;
+  }
+  syncCtlPanel();
+  updateAnchors();
   updateModeBests(); updateTitleDisplay();
 })();
 // ---- PWA: サービスワーカー登録(https配信時のみ有効) ----
