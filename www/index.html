@@ -792,6 +792,46 @@ function moveEntity(e, dx, dy) {
 }
 
 // ================= パーティクル・演出 =================
+// 爆発アニメ(explosion_sheet.png: 256×256 を8コマ横並び)
+var EXP_FRAMES = 8, EXP_CELL = 256, EXP_HOLD = 3; // 1コマ3フレーム = 24フレーム(約0.4秒)
+var fxBlasts = [];
+function spawnBlast(x, y, size, delay) {
+  fxBlasts.push({
+    x: x, y: y, size: size || 56,
+    t: -(delay || 0),
+    rot: rand(0, Math.PI * 2),
+    flip: Math.random() < 0.5
+  });
+}
+function updateBlasts() {
+  for (var i = fxBlasts.length - 1; i >= 0; i--) {
+    fxBlasts[i].t++;
+    if (fxBlasts[i].t >= EXP_FRAMES * EXP_HOLD) fxBlasts.splice(i, 1);
+  }
+}
+function drawBlasts() {
+  if (!fxBlasts.length || !sprReady('explosion_sheet')) return;
+  var im = SPR['explosion_sheet'];
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (var i = 0; i < fxBlasts.length; i++) {
+    var b = fxBlasts[i];
+    if (b.t < 0) continue;
+    var f = Math.min(EXP_FRAMES - 1, Math.floor(b.t / EXP_HOLD));
+    // 後半はふわっと消す
+    var prog = b.t / (EXP_FRAMES * EXP_HOLD);
+    ctx.globalAlpha = prog > 0.7 ? Math.max(0, (1 - prog) / 0.3) : 1;
+    var s = b.size * (0.9 + prog * 0.35);
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.rot);
+    if (b.flip) ctx.scale(-1, 1);
+    ctx.drawImage(im, f * EXP_CELL, 0, EXP_CELL, EXP_CELL, -s / 2, -s / 2, s, s);
+    ctx.restore();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
 function spawnParticles(x, y, color, n, pow) {
   for (var i = 0; i < n; i++) {
     var a = rand(0, Math.PI * 2), s = rand(0.5, 3.2) * (pow || 1);
@@ -815,7 +855,8 @@ var SPR = {};
   'player', 'block_soft', 'block_wall',
   'bullet_p', 'bullet_e', 'bullet_b',
   'en_grunt', 'en_runner', 'en_shooter', 'en_bouncer', 'en_bomber', 'en_tank',
-  'pu_power', 'pu_rapid', 'pu_spread', 'pu_speed', 'pu_pierce', 'pu_heal', 'pu_shield', 'pu_bomb'
+  'pu_power', 'pu_rapid', 'pu_spread', 'pu_speed', 'pu_pierce', 'pu_heal', 'pu_shield', 'pu_bomb',
+  'explosion_sheet'
 ].forEach(function (n) {
   var im = new Image(); im.src = 'img/' + n + '.png'; SPR[n] = im;
 });
@@ -1133,6 +1174,7 @@ function explodeBomb(b) {
   for (var i = 0; i < cells.length; i++) {
     blasts.push({ x: cells[i].x, y: cells[i].y, life: 22, max: 22, dmg: true });
     spawnParticles(cells[i].x, cells[i].y, i % 2 ? '#ff8c3a' : '#ffd75e', 8, 2);
+    spawnBlast(cells[i].x, cells[i].y, TILE * 1.7, i === 0 ? 0 : 2 + (i % 3) * 2);
   }
 }
 function comboMult() { return Math.min(4, 1 + G.combo * 0.15); }
@@ -1152,6 +1194,15 @@ function damageEnemy(e, dmg, silent) {
     G.score += gain;
     addFloat(e.x, e.y - e.r - 6, '+' + gain, '#ffd75e');
     spawnParticles(e.x, e.y, e.color, e.type === 'boss' ? 50 : (e.type === 'tank' ? 26 : 14), e.type === 'boss' ? 3 : 1.6);
+    if (e.type === 'boss') {
+      // ボスは連続爆発
+      spawnBlast(e.x, e.y, e.r * 4.4, 0);
+      for (var nb = 0; nb < 5; nb++) {
+        spawnBlast(e.x + rand(-e.r, e.r), e.y + rand(-e.r, e.r), e.r * 2.4, 5 + nb * 5);
+      }
+    } else {
+      spawnBlast(e.x, e.y, e.r * (e.type === 'tank' ? 4.2 : 3.4));
+    }
     G.shake = Math.max(G.shake, e.type === 'boss' ? 20 : (e.type === 'tank' ? 10 : 5));
     SFX.kill();
     var dropChance = e.type === 'boss' ? 1 : (e.type === 'tank' ? 0.5 : 0.09);
@@ -1206,7 +1257,7 @@ function startGame() {
   G.state = 'play';
   player = newPlayer();
   bullets = []; ebullets = []; enemies = []; items = []; particles = []; spawnMarks = []; floats = [];
-  bombs = []; blasts = [];
+  bombs = []; blasts = []; fxBlasts = [];
   resetRunStats();
   genMap();
   G.spawnQueue = buildWaveQueue();
@@ -1597,6 +1648,7 @@ function update() {
   updateHud();
 }
 function updateParticlesOnly() {
+  updateBlasts();
   for (var i = particles.length - 1; i >= 0; i--) {
     var p = particles[i];
     p.x += p.vx; p.y += p.vy;
@@ -1911,6 +1963,9 @@ function draw() {
   }
   ctx.globalAlpha = 1;
 
+  // 爆発アニメ
+  drawBlasts();
+
   // フロートテキスト
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (var ifl = 0; ifl < floats.length; ifl++) {
@@ -1985,7 +2040,7 @@ function goHome() {
   G = newGameState(); // state: 'title'
   player = newPlayer();
   bullets = []; ebullets = []; enemies = []; items = []; particles = []; spawnMarks = []; floats = [];
-  bombs = []; blasts = [];
+  bombs = []; blasts = []; fxBlasts = [];
   genMap();
   document.getElementById('over').classList.add('hidden');
   document.getElementById('paused').classList.add('hidden');
