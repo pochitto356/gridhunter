@@ -814,11 +814,17 @@ var SPR = {};
   'boss_orbitron', 'boss_blockcore', 'boss_chaos',
   'player', 'block_soft', 'block_wall',
   'bullet_p', 'bullet_e', 'bullet_b',
-  'en_grunt', 'en_runner', 'en_shooter', 'en_bouncer', 'en_bomber', 'en_tank'
+  'en_grunt', 'en_runner', 'en_shooter', 'en_bouncer', 'en_bomber', 'en_tank',
+  'pu_power', 'pu_rapid', 'pu_spread', 'pu_speed', 'pu_pierce', 'pu_heal', 'pu_shield', 'pu_bomb'
 ].forEach(function (n) {
   var im = new Image(); im.src = 'img/' + n + '.png'; SPR[n] = im;
 });
 function sprReady(k) { var im = SPR[k]; return im && im.complete && im.naturalWidth > 0; }
+// パワーアップの見た目(キャラクターデザイン一覧より)。gemはプログラム描画のまま
+var ITEM_SKINS = {
+  pow: 'pu_power', rof: 'pu_rapid', mul: 'pu_spread', spd: 'pu_speed',
+  prc: 'pu_pierce', heart: 'pu_heal', shield: 'pu_shield', nuke: 'pu_bomb'
+};
 // 敵の見た目(キャラクターデザイン一覧より)
 var ENEMY_SKINS = {
   grunt:   { key: 'en_grunt',   scale: 2.9, spin: 0 },
@@ -1711,17 +1717,31 @@ function draw() {
     var glow = 0.55 + 0.35 * Math.sin(it.age * 0.15);
     ctx.save();
     ctx.translate(it.x, it.y + bob);
-    ctx.shadowColor = it.def.color;
-    ctx.shadowBlur = 14 * glow;
-    ctx.fillStyle = '#1c1c2c';
-    ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = it.def.color; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = it.def.color;
-    ctx.font = 'bold 12px sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(it.def.ch, 0, 1);
+    var puKey = ITEM_SKINS[it.def.kind];
+    if (puKey && sprReady(puKey)) {
+      // 色が一目で分かるよう、スプライトの背後に種別色の光を置く
+      ctx.shadowColor = it.def.color;
+      ctx.shadowBlur = 16 * glow;
+      ctx.globalAlpha = 0.5 * glow;
+      ctx.fillStyle = it.def.color;
+      ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 10 * glow;
+      var isz = 30;
+      ctx.drawImage(SPR[puKey], -isz / 2, -isz / 2, isz, isz);
+    } else {
+      ctx.shadowColor = it.def.color;
+      ctx.shadowBlur = 14 * glow;
+      ctx.fillStyle = '#1c1c2c';
+      ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = it.def.color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0, 0, 11, 0, Math.PI * 2); ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = it.def.color;
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(it.def.ch, 0, 1);
+    }
     ctx.restore();
   }
 
