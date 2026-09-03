@@ -1,5 +1,5 @@
 /* GRID HUNTER service worker — キャッシュ優先でオフライン動作 */
-var CACHE = 'gridhunter-v2';
+var CACHE = 'gridhunter-v3';
 var ASSETS = [
   './',
   './index.html',
@@ -7,7 +7,12 @@ var ASSETS = [
   './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './img/logo.png', './img/orbitron.png', './img/divider.png', './img/destroyer.png', './img/warning.png', './img/gridbreak.png'
+  './img/logo.png', './img/warning.png', './img/gridbreak.png',
+  './img/boss_orbitron.png', './img/boss_blockcore.png', './img/boss_chaos.png',
+  './img/player.png', './img/block_soft.png', './img/block_wall.png',
+  './img/bullet_p.png', './img/bullet_e.png', './img/bullet_b.png',
+  './img/en_grunt.png', './img/en_runner.png', './img/en_shooter.png',
+  './img/en_bouncer.png', './img/en_bomber.png', './img/en_tank.png'
 ];
 self.addEventListener('install', function (e) {
   e.waitUntil(
