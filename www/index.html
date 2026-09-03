@@ -346,6 +346,12 @@
             <button class="seg" data-v="1">左=狙う / 右=移動</button>
           </span>
         </div>
+        <div class="setRow"><span>弾の発射</span>
+          <span class="segs" data-set="autoFire">
+            <button class="seg" data-v="1">常に出す</button>
+            <button class="seg" data-v="0">狙っている間だけ</button>
+          </span>
+        </div>
         <div class="setRow"><span>大きさ</span>
           <span class="segs" data-set="size">
             <button class="seg" data-v="s">小</button>
@@ -360,7 +366,7 @@
             <button class="seg" data-v="0.65">濃い</button>
           </span>
         </div>
-        <div class="setNote">スティックは盤面の外(左右の黒い部分)に出ます。プレイ中はどこを触っても操作できます。</div>
+        <div class="setNote">スティックは盤面の外(左右の黒い部分)に出ます。プレイ中はどこを触っても操作できます。弾は既定で常に出続け、右スティックで向きを変えられます。</div>
       </div>
       <div id="shopRow" class="hidden">
         <button class="ctl" id="buyRemoveAdsBtn">&#128683; 広告を削除</button>
@@ -502,7 +508,7 @@ var astick = { active: false, id: null, bx: 0, by: 0, dx: 0, dy: 0 }; // 照準�
 cv.addEventListener('mousemove', function () { if (!vstick.active && !astick.active) inputMode = 'mouse'; });
 
 // ---- 操作設定(プレイヤーがカスタマイズできる) ----
-var CTL = { mode: 'edge', swap: false, size: 'm', alpha: 0.4 };
+var CTL = { mode: 'edge', swap: false, size: 'm', alpha: 0.4, autoFire: true };
 var CTL_SIZES = { s: 46, m: 58, l: 72 }; // スティックの外周半径(画面px)
 function stickR() { return CTL_SIZES[CTL.size] || CTL_SIZES.m; }
 function stickMax() { return stickR() * 0.62; }        // ノブが動ける距離
@@ -706,7 +712,7 @@ function newPlayer() {
     hp: 6, maxHp: 6,
     speedLv: 1, powLv: 1, rofLv: 1, mulLv: 1, prcLv: 0,
     iframes: 0, shield: 0,
-    lastShot: 0, angle: 0,
+    lastShot: 0, angle: -Math.PI / 2,  // 初期は上向き(常時発射のため向きを決めておく)
     flashT: 0
   };
 }
@@ -1367,10 +1373,12 @@ function update() {
     moveEntity(player, vstick.dx / vl * vsp, vstick.dy / vl * vsp);
   }
   if (inputMode === 'touch') {
+    // 照準スティックを触っている間は向きを更新。離しても最後の向きを保つ
     if (astick.active && (astick.dx || astick.dy)) {
       player.angle = Math.atan2(astick.dy, astick.dx);
-      tryShoot(); // 右スティックで狙った方向へ弾は出っぱなし(自動連射)
     }
+    // 弾は出っぱなし(設定で「狙っている間だけ」にもできる)
+    if (CTL.autoFire || (astick.active && (astick.dx || astick.dy))) tryShoot();
   } else {
     player.angle = Math.atan2(mouse.y - player.y, mouse.x - player.x);
   }
@@ -2044,7 +2052,7 @@ setTimeout(fitCanvasAndPads, 300);
 function syncCtlPanel() {
   var panel = document.getElementById('ctlPanel');
   if (!panel) return;
-  var cur = { mode: CTL.mode, swap: CTL.swap ? '1' : '0', size: CTL.size, alpha: String(CTL.alpha) };
+  var cur = { mode: CTL.mode, swap: CTL.swap ? '1' : '0', size: CTL.size, alpha: String(CTL.alpha), autoFire: CTL.autoFire ? '1' : '0' };
   var groups = panel.querySelectorAll('.segs');
   for (var i = 0; i < groups.length; i++) {
     var key = groups[i].getAttribute('data-set');
@@ -2064,6 +2072,7 @@ function syncCtlPanel() {
     var key = b.parentNode.getAttribute('data-set'), v = b.getAttribute('data-v');
     if (key === 'mode') CTL.mode = v;
     else if (key === 'swap') CTL.swap = (v === '1');
+    else if (key === 'autoFire') CTL.autoFire = (v === '1');
     else if (key === 'size') CTL.size = v;
     else if (key === 'alpha') CTL.alpha = parseFloat(v);
     syncCtlPanel(); updateAnchors(); persistSave();
@@ -2099,7 +2108,7 @@ function syncCtlPanel() {
   window._syncPanelMode = syncPanelMode;
 })();
 if (IS_TOUCH) {
-  document.getElementById('ctlLine').innerHTML = '<b>左ドラッグ=移動 / 右ドラッグ=狙う</b>(弾は自動発射)スティックは盤面の外に出ます';
+  document.getElementById('ctlLine').innerHTML = '<b>左ドラッグ=移動 / 右ドラッグ=狙う</b> 弾は常に自動発射。スティックは盤面の外に出ます';
 }
 updateHearts(); updateStatChips(); updateTitleDisplay();
 // ---- 収益化: AdMobバナー + 広告削除アプリ内課金(ネイティブ時のみ) ----
@@ -2214,6 +2223,7 @@ else { window.addEventListener('load', function () { MZ.init(); }); }
     CTL.swap = !!s.ctl.swap;
     if (CTL_SIZES[s.ctl.size]) CTL.size = s.ctl.size;
     if (typeof s.ctl.alpha === 'number') CTL.alpha = s.ctl.alpha;
+    if (typeof s.ctl.autoFire === 'boolean') CTL.autoFire = s.ctl.autoFire;
   }
   syncCtlPanel();
   updateAnchors();
