@@ -2189,7 +2189,7 @@ var MZ = {
     this.adsRemoved = !!loadSave().adsRemoved;
     this.native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
     if (!this.native) return; // Web/PWA版では広告も購入UIも出さない
-    this.initIAP();
+    this.bootIAP();
     if (!this.adsRemoved) {
       this.showBanner();
       document.getElementById('shopRow').classList.remove('hidden');
@@ -2231,10 +2231,35 @@ var MZ = {
     persistSave();
     addToast('広告を削除しました。ありがとうございます!');
   },
+  // 課金プラグインはネイティブ側のブリッジが準備できてからでないと商品情報を取れない。
+  // load時ではなく deviceready を待って初期化する(発火済み/発火しない環境のために保険のタイマーも置く)。
+  // ※ 以前は load 直後に初期化していて、端末によっては商品が取れず「取得中です」のまま購入できなかった(審査2.1(b)の原因)
+  iapBooted: false,
+  iapReady: false,
+  bootIAP: function () {
+    var self = this;
+    var go = function () { if (self.iapBooted) return; self.iapBooted = true; self.initIAP(); };
+    document.addEventListener('deviceready', go, { once: true });
+    setTimeout(go, 2500);
+  },
+  // 商品情報をまだ取れていなければストアに取りに行く(購入ボタンを押したときに呼ぶ)
+  ensureProduct: function () {
+    var self = this;
+    if (!window.CdvPurchase || !this.iapBooted) return Promise.resolve(null);
+    var store = CdvPurchase.store;
+    var get = function () {
+      var p = store.get(self.PRODUCT_ID, CdvPurchase.Platform.APPLE_APPSTORE);
+      return (p && p.getOffer()) ? p : null;
+    };
+    var p = get();
+    if (p) return Promise.resolve(p);
+    return store.update().then(get).catch(function () { return null; });
+  },
   initIAP: function () {
     if (!window.CdvPurchase) return;
     var store = CdvPurchase.store, self = this;
     try {
+      store.verbosity = CdvPurchase.LogLevel.WARN;
       store.register([{
         id: this.PRODUCT_ID,
         type: CdvPurchase.ProductType.NON_CONSUMABLE,
@@ -2250,20 +2275,25 @@ var MZ = {
             if (b) b.innerHTML = '&#128683; 広告を削除 ' + self.price;
           }
           if (store.owned(self.PRODUCT_ID)) self.markRemoved();
-        });
+        })
+        .receiptsReady(function () { self.iapReady = true; if (store.owned(self.PRODUCT_ID)) self.markRemoved(); });
       store.initialize([CdvPurchase.Platform.APPLE_APPSTORE]).then(function () {
         if (store.owned(self.PRODUCT_ID)) self.markRemoved();
       });
     } catch (e) {}
   },
+  buying: false,
   buy: function () {
     if (!window.CdvPurchase) { addToast('この環境では購入できません'); return; }
-    try {
-      var p = CdvPurchase.store.get(this.PRODUCT_ID, CdvPurchase.Platform.APPLE_APPSTORE);
+    if (this.buying) return;
+    var self = this;
+    this.buying = true;
+    this.ensureProduct().then(function (p) {
+      self.buying = false;
       var offer = p && p.getOffer();
-      if (offer) offer.order();
-      else addToast('商品情報を取得中です。少し待ってからお試しください');
-    } catch (e) {}
+      if (offer) { offer.order().catch(function () {}); }
+      else addToast('商品情報を取得できませんでした。通信状況を確認してもう一度お試しください');
+    }).catch(function () { self.buying = false; });
   },
   restore: function () {
     if (!window.CdvPurchase) return;
