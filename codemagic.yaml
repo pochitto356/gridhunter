@@ -40,7 +40,7 @@ workflows:
           cd ios/App
           BUILD_NUMBER=$(($(app-store-connect get-latest-testflight-build-number "$APP_APPLE_ID" 2>/dev/null || echo 0) + 1))
           agvtool new-version -all $BUILD_NUMBER
-          agvtool new-marketing-version 1.1
+          agvtool new-marketing-version 1.2
       - name: 署名設定を適用
         script: xcode-project use-profiles
       - name: IPAをビルド
