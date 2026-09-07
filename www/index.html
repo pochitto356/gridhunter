@@ -720,6 +720,8 @@ player = newPlayer();
 
 var bullets = [], ebullets = [], enemies = [], items = [], particles = [], spawnMarks = [], floats = [];
 var telegraphs = [];   // GH-002: ボス攻撃の予告(円・マス)
+var dropFx = [];       // GH-002: 落下ブロックの着弾演出
+var shockFx = [];      // GH-002: スラムの衝撃波リング
 var bombs = [], blasts = [];
 var enemyId = 0;
 
@@ -857,11 +859,28 @@ var SPR = {};
   'bullet_p', 'bullet_e', 'bullet_b',
   'en_grunt', 'en_runner', 'en_shooter', 'en_bouncer', 'en_bomber', 'en_tank',
   'pu_power', 'pu_rapid', 'pu_spread', 'pu_speed', 'pu_pierce', 'pu_heal', 'pu_shield', 'pu_bomb',
-  'explosion_sheet'
+  'explosion_sheet',
+  'shockwave_ring', 'tele_ring', 'tele_cell', 'drop_block'   // GH-002 ボス攻撃エフェクト
 ].forEach(function (n) {
   var im = new Image(); im.src = 'img/' + n + '.png'; SPR[n] = im;
 });
 function sprReady(k) { var im = SPR[k]; return im && im.complete && im.naturalWidth > 0; }
+// 白い素材を任意の色に着色してキャッシュする(予告リング・予告マス用)
+var TINT_CACHE = {};
+function tinted(key, color) {
+  if (!sprReady(key)) return null;
+  var ck = key + '|' + color;
+  if (TINT_CACHE[ck]) return TINT_CACHE[ck];
+  var im = SPR[key], cv = document.createElement('canvas');
+  cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+  var c2 = cv.getContext('2d');
+  c2.drawImage(im, 0, 0);
+  c2.globalCompositeOperation = 'source-in';
+  c2.fillStyle = color;
+  c2.fillRect(0, 0, cv.width, cv.height);
+  TINT_CACHE[ck] = cv;
+  return cv;
+}
 // パワーアップの見た目(キャラクターデザイン一覧より)。gemはプログラム描画のまま
 var ITEM_SKINS = {
   pow: 'pu_power', rof: 'pu_rapid', mul: 'pu_spread', spd: 'pu_speed',
@@ -1244,13 +1263,14 @@ function fireBossAttack(en, pd, pa) {
     for (i = 0; i < pd.cells.length; i++) {
       blasts.push({ x: pd.cells[i].x, y: pd.cells[i].y, life: 22, max: 22, dmg: true, pdmg: 2 });
       spawnParticles(pd.cells[i].x, pd.cells[i].y, '#ffb347', 10, 2);
+      if (sprReady('drop_block')) dropFx.push({ x: pd.cells[i].x, y: pd.cells[i].y, t: 16, max: 16 });
     }
     G.shake = Math.max(G.shake, 10); SFX.hurt && SFX.eshoot();
   } else if (pd.kind === 'slam') {
     if (dist2(en.x, en.y, player.x, player.y) < (pd.r + player.r) * (pd.r + player.r)) hurtPlayer(2, en.x, en.y);
     spawnParticles(en.x, en.y, '#ffb347', 26, 3);
     G.shake = Math.max(G.shake, 14);
-    if (sprReady('shockwave_ring')) spawnBlast(en.x, en.y, pd.r * 2.2, 0);   // 素材があれば衝撃波演出
+    shockFx.push({ x: en.x, y: en.y, t: 20, max: 20, r: pd.r * 2.4 });
   } else if (pd.kind === 'fan') {
     n = pd.n;
     for (i = 0; i < n; i++) { a = pa + (i - (n - 1) / 2) * 0.28; bossFire(en.x, en.y, a, 3.6, true); }
@@ -1263,6 +1283,32 @@ function fireBossAttack(en, pd, pa) {
     if (G.wave >= 30 && !isTA()) {
       for (i = 0; i < 2; i++) { var c2 = findSpawnCell(); if (c2) spawnMarks.push({ x: c2.x, y: c2.y, t: 30, type: 'grunt' }); }
     }
+  }
+}
+function updateDropFx() {
+  for (var i = dropFx.length - 1; i >= 0; i--) { if (--dropFx[i].t <= 0) dropFx.splice(i, 1); }
+  for (var j = shockFx.length - 1; j >= 0; j--) { if (--shockFx[j].t <= 0) shockFx.splice(j, 1); }
+}
+function drawDropFx() {
+  if (!dropFx.length || !sprReady('drop_block')) return;
+  ctx.save();
+  for (var i = 0; i < dropFx.length; i++) {
+    var d = dropFx[i], p = 1 - d.t / d.max;        // 0=落下開始 1=着地
+    var sz = TILE * (1.25 - 0.25 * p);             // 落ちながら小さくなる=近づいてくる
+    var dy = -TILE * 0.9 * (1 - p) * (1 - p);      // 上から落ちる
+    ctx.globalAlpha = 0.45 + 0.55 * p;
+    ctx.drawImage(SPR['drop_block'], d.x - sz / 2, d.y - sz / 2 + dy, sz, sz);
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
+  if (shockFx.length && sprReady('shockwave_ring')) {
+    ctx.save();
+    for (var k = 0; k < shockFx.length; k++) {
+      var f = shockFx[k], q = 1 - f.t / f.max;      // 0→1 で広がりながら消える
+      var s2 = f.r * (0.5 + 1.3 * q);
+      ctx.globalAlpha = 0.85 * (1 - q);
+      ctx.drawImage(SPR['shockwave_ring'], f.x - s2 / 2, f.y - s2 / 2, s2, s2);
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
   }
 }
 function updateTelegraphs() {
@@ -1282,6 +1328,14 @@ function drawTelegraphs() {
     ctx.strokeStyle = t.color; ctx.fillStyle = t.color;
     ctx.lineWidth = 2 + p * 2;
     ctx.shadowColor = t.color; ctx.shadowBlur = 8 + 10 * p;
+    // 素材があればそれを使う(無ければ従来の描画にフォールバック)
+    var spr = tinted(t.kind === 'cell' ? 'tele_cell' : 'tele_ring', t.color);
+    if (spr) {
+      ctx.globalAlpha = Math.min(1, (0.7 + 0.3 * p) * (t.kind === 'cell' ? 1 : (0.8 + 0.2 * pulse)));
+      var sz = t.kind === 'cell' ? TILE + 4 : t.r * 2 * (1.15 + 0.45 * p);   // 素材が細いので大きめ・濃いめに出す
+      ctx.drawImage(spr, t.x - sz / 2, t.y - sz / 2, sz, sz);
+      continue;
+    }
     if (t.kind === 'cell') {
       ctx.globalAlpha = 0.6 + 0.4 * p;
       ctx.strokeRect(t.x - TILE / 2 + 3, t.y - TILE / 2 + 3, TILE - 6, TILE - 6);
@@ -1418,7 +1472,7 @@ function startGame() {
   G = newGameState();
   G.state = 'play';
   player = newPlayer();
-  bullets = []; ebullets = []; enemies = []; items = []; particles = []; spawnMarks = []; floats = []; telegraphs = [];
+  bullets = []; ebullets = []; enemies = []; items = []; particles = []; spawnMarks = []; floats = []; telegraphs = []; dropFx = []; shockFx = [];
   bombs = []; blasts = []; fxBlasts = [];
   resetRunStats();
   genMap();
@@ -1713,7 +1767,7 @@ function update() {
     if (bl.life <= 0) blasts.splice(ibl, 1);
   }
 
-  updateTelegraphs();
+  updateTelegraphs(); updateDropFx();
   // --- スポーン ---
   trySpawnFromQueue();
   for (var i3 = spawnMarks.length - 1; i3 >= 0; i3--) {
@@ -2035,6 +2089,7 @@ function draw() {
   }
 
   drawTelegraphs();   // GH-002: 予告は敵の上に描く(ボス周りのリングが隠れないように)
+  drawDropFx();
   // プレイヤー弾
   for (var i8 = 0; i8 < bullets.length; i8++) {
     var b = bullets[i8];
