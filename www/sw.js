@@ -1,5 +1,5 @@
 /* GRID HUNTER service worker — キャッシュ優先でオフライン動作 */
-var CACHE = 'gridhunter-v6';
+var CACHE = 'gridhunter-v7';
 var ASSETS = [
   './',
   './index.html',
