@@ -712,6 +712,7 @@ function newPlayer() {
     hp: 6, maxHp: 6,
     speedLv: 1, powLv: 1, rofLv: 1, mulLv: 1, prcLv: 0,
     iframes: 0, shield: 0,
+    bounceT: 0, laserT: 0, orbitT: 0, orbitA: 0, laserT2: 0,   // GH-003 時限バフの残りフレーム
     lastShot: 0, angle: -Math.PI / 2,  // 初期は上向き(常時発射のため向きを決めておく)
     flashT: 0
   };
@@ -860,7 +861,8 @@ var SPR = {};
   'en_grunt', 'en_runner', 'en_shooter', 'en_bouncer', 'en_bomber', 'en_tank',
   'pu_power', 'pu_rapid', 'pu_spread', 'pu_speed', 'pu_pierce', 'pu_heal', 'pu_shield', 'pu_bomb',
   'explosion_sheet',
-  'shockwave_ring', 'tele_ring', 'tele_cell', 'drop_block'   // GH-002 ボス攻撃エフェクト
+  'shockwave_ring', 'tele_ring', 'tele_cell', 'drop_block',   // GH-002 ボス攻撃エフェクト
+  'pu_bounce', 'pu_laser', 'pu_orbit'   // GH-003 時限パワーアップ
 ].forEach(function (n) {
   var im = new Image(); im.src = 'img/' + n + '.png'; SPR[n] = im;
 });
@@ -884,7 +886,8 @@ function tinted(key, color) {
 // パワーアップの見た目(キャラクターデザイン一覧より)。gemはプログラム描画のまま
 var ITEM_SKINS = {
   pow: 'pu_power', rof: 'pu_rapid', mul: 'pu_spread', spd: 'pu_speed',
-  prc: 'pu_pierce', heart: 'pu_heal', shield: 'pu_shield', nuke: 'pu_bomb'
+  prc: 'pu_pierce', heart: 'pu_heal', shield: 'pu_shield', nuke: 'pu_bomb',
+  bounce: 'pu_bounce', laser: 'pu_laser', orbit: 'pu_orbit'   // GH-003
 };
 // 敵の見た目(キャラクターデザイン一覧より)
 var ENEMY_SKINS = {
@@ -925,15 +928,30 @@ var ITEM_DEFS = [
   { kind: 'heart',  w: 5,  color: '#ff6d8d', ch: '♥' },
   { kind: 'shield', w: 3,  color: '#30E6FF', ch: '◈' },
   { kind: 'nuke',   w: 5,  color: '#8dff6d', ch: '☢' },
+  // GH-003 時限パワーアップ(タイムアタックには出さない)
+  { kind: 'bounce', w: 3,  color: '#7CFF4F', ch: '⤡', timed: true },
+  { kind: 'laser',  w: 3,  color: '#4FD8FF', ch: '━', timed: true },
+  { kind: 'orbit',  w: 3,  color: '#E060FF', ch: '✳', timed: true },
   { kind: 'gem',    w: 14, color: '#ffffff', ch: '◆' }
 ];
+// GH-003 効果時間(フレーム / 60fps)
+var BUFF_T = { bounce: 480, laser: 300, orbit: 480 };   // 8秒 / 5秒 / 8秒
+var TIMED_DEFS = [];
 var ITEM_TOTAL_W = 0;
 for (var _i = 0; _i < ITEM_DEFS.length; _i++) ITEM_TOTAL_W += ITEM_DEFS[_i].w;
 // タイムアタックは運ゲー化を防ぐため全体爆破(nuke)をドロップから除外
 var ITEM_DEFS_TA = [];
 var ITEM_TA_W = 0;
 for (var _j = 0; _j < ITEM_DEFS.length; _j++) {
-  if (ITEM_DEFS[_j].kind !== 'nuke') { ITEM_DEFS_TA.push(ITEM_DEFS[_j]); ITEM_TA_W += ITEM_DEFS[_j].w; }
+  var _d = ITEM_DEFS[_j];
+  if (_d.timed) TIMED_DEFS.push(_d);
+  // タイムアタックからは全体爆破(nuke)と時限バフを除外(アイテム運でタイムが決まらないように)
+  if (_d.kind !== 'nuke' && !_d.timed) { ITEM_DEFS_TA.push(_d); ITEM_TA_W += _d.w; }
+}
+// ボス撃破時のドロップ1個を時限バフ確定にする(タイムアタックを除く)
+function dropTimedItem(x, y) {
+  if (G.mode === 'time') { dropItem(x, y); return; }
+  items.push({ x: x, y: y, def: TIMED_DEFS[randi(0, TIMED_DEFS.length - 1)], age: rand(0, 100) });
 }
 function pickItemKind() {
   var defs = ITEM_DEFS, total = ITEM_TOTAL_W;
@@ -974,6 +992,12 @@ function applyItem(it) {
     case 'shield':
       p.shield = 300; label = 'シールド!';
       SFX.shieldUp(); break;
+    case 'bounce':
+      p.bounceT = BUFF_T.bounce; label = '反射弾!'; SFX.shieldUp(); break;
+    case 'laser':
+      p.laserT = BUFF_T.laser; label = 'レーザー!'; SFX.shieldUp(); break;
+    case 'orbit':
+      p.orbitT = BUFF_T.orbit; label = '旋回レーザー!'; SFX.shieldUp(); break;
     case 'nuke':
       doNuke(); label = '全体爆破!!';
       runStats.nukesUsed++;
@@ -1353,6 +1377,134 @@ function drawTelegraphs() {
   ctx.restore(); ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
 
+// ================= GH-003 時限パワーアップ =================
+/* 反射弾 / レーザー / 旋回レーザー。すべて時間制で、同時にかかってよい。
+   同じ種類を取り直したら残り時間は上書き(延長ではなくリセット)。 */
+
+// 点と線分の距離の2乗(レーザーの当たり判定)
+function distToSeg2(px, py, ax, ay, bx, by) {
+  var dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+  var t = L > 0 ? ((px - ax) * dx + (py - ay) * dy) / L : 0;
+  t = clamp(t, 0, 1);
+  return dist2(px, py, ax + dx * t, ay + dy * t);
+}
+var laserBeam = null;   // 描画用に今フレームのビームを持っておく
+function fireLaser() {
+  var a = player.angle, ca = Math.cos(a), sa = Math.sin(a);
+  var x = player.x, y = player.y, step = 6, maxLen = 900, len = 0;
+  // 壁で止まる。壊せるブロックは削る
+  for (; len < maxLen; len += step) {
+    var nx = x + ca * len, ny = y + sa * len;
+    if (nx < 0 || ny < 0 || nx > W || ny > H) break;
+    var sv = solid(Math.floor(nx / TILE), Math.floor(ny / TILE));
+    if (sv === 2) {
+      if (player.laserT2 <= 0) {
+        grid[Math.floor(ny / TILE)][Math.floor(nx / TILE)] = 0; SFX.breakB();
+        spawnParticles(nx, ny, '#8a5a33', 8, 1.3); G.score += 10; runStats.blocksBroken++;
+        if (Math.random() < 0.55) dropItem(nx, ny);
+      }
+      break;
+    }
+    if (sv) break;
+  }
+  var ex = x + ca * len, ey = y + sa * len;
+  laserBeam = { x1: x, y1: y, x2: ex, y2: ey };
+  // 6フレームに1回だけダメージ(毎フレームだと強すぎる)
+  if (player.laserT2 > 0) return;
+  player.laserT2 = 6;
+  var hit = false;
+  for (var i = 0; i < enemies.length; i++) {
+    var e = enemies[i];
+    if (e.dead) continue;
+    if (distToSeg2(e.x, e.y, x, y, ex, ey) < (e.r + 7) * (e.r + 7)) {
+      damageEnemy(e, bulletDmg() * 0.8);
+      addFloat(e.x, e.y - e.r - 6, Math.round(bulletDmg() * 8) / 10 + '', '#9beeff');
+      spawnParticles(e.x, e.y, '#4FD8FF', 4, 1.4);
+      hit = true;
+    }
+  }
+  if (hit) SFX.shoot();
+}
+// 旋回レーザー: 3枚の刃が自機の周りを回り、触れた敵にダメージ。無敵ではない
+var ORBIT_N = 3, ORBIT_R = 46, ORBIT_HITCD = 30;
+var orbitHits = {};   // 敵id -> 次に当てられるフレーム
+function orbitPos(i) {
+  var a = player.orbitA + (Math.PI * 2 / ORBIT_N) * i;
+  return { x: player.x + Math.cos(a) * ORBIT_R, y: player.y + Math.sin(a) * ORBIT_R };
+}
+function updateOrbit() {
+  for (var i = 0; i < ORBIT_N; i++) {
+    var p = orbitPos(i);
+    for (var j = 0; j < enemies.length; j++) {
+      var e = enemies[j];
+      if (e.dead) continue;
+      if ((orbitHits[e.id] || 0) > G.frame) continue;
+      if (dist2(p.x, p.y, e.x, e.y) < (e.r + 11) * (e.r + 11)) {
+        orbitHits[e.id] = G.frame + ORBIT_HITCD;
+        damageEnemy(e, bulletDmg() * 1.5);
+        addFloat(e.x, e.y - e.r - 6, Math.round(bulletDmg() * 15) / 10 + '', '#f0a0ff');
+        spawnParticles(p.x, p.y, '#E060FF', 6, 1.8);
+        e.kx += (e.x - player.x) * 0.05; e.ky += (e.y - player.y) * 0.05;
+      }
+    }
+  }
+}
+function drawOrbit() {
+  if (player.orbitT <= 0) return;
+  var fade = player.orbitT < 60 && Math.floor(player.orbitT / 5) % 2 === 0 ? 0.35 : 1;   // 切れる1秒前は点滅
+  ctx.save(); ctx.globalAlpha = fade;
+  ctx.strokeStyle = 'rgba(224,96,255,0.35)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(player.x, player.y, ORBIT_R, 0, Math.PI * 2); ctx.stroke();
+  ctx.shadowColor = '#E060FF'; ctx.shadowBlur = 12;
+  for (var i = 0; i < ORBIT_N; i++) {
+    var p = orbitPos(i), a = player.orbitA + (Math.PI * 2 / ORBIT_N) * i;
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(a + Math.PI / 2);
+    ctx.fillStyle = '#f6c8ff'; ctx.strokeStyle = '#E060FF'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, -11); ctx.lineTo(5, 0); ctx.lineTo(0, 11); ctx.lineTo(-5, 0); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore(); ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+}
+function drawLaser() {
+  if (player.laserT <= 0 || !laserBeam) return;
+  var b = laserBeam;
+  var fade = player.laserT < 60 && Math.floor(player.laserT / 5) % 2 === 0 ? 0.4 : 1;
+  ctx.save(); ctx.globalAlpha = fade; ctx.lineCap = 'round';
+  ctx.shadowColor = '#4FD8FF'; ctx.shadowBlur = 18;
+  ctx.strokeStyle = 'rgba(79,216,255,0.55)'; ctx.lineWidth = 14;
+  ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+  ctx.strokeStyle = '#eafcff'; ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(b.x1, b.y1); ctx.lineTo(b.x2, b.y2); ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(b.x2, b.y2, 5 + Math.sin(G.frame * 0.6) * 2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore(); ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+}
+// 効果中のバフを残り時間バーで出す(いつ切れるか分かるように)
+function drawBuffBars() {
+  var list = [];
+  if (player.bounceT > 0) list.push({ t: player.bounceT, max: BUFF_T.bounce, c: '#7CFF4F', k: 'pu_bounce' });
+  if (player.laserT  > 0) list.push({ t: player.laserT,  max: BUFF_T.laser,  c: '#4FD8FF', k: 'pu_laser' });
+  if (player.orbitT  > 0) list.push({ t: player.orbitT,  max: BUFF_T.orbit,  c: '#E060FF', k: 'pu_orbit' });
+  if (!list.length) return;
+  var bw = 84, bh = 8, gap = 6, x0 = 10, y0 = H - 10 - list.length * (bh + 20) ;
+  ctx.save();
+  for (var i = 0; i < list.length; i++) {
+    var b = list[i], y = y0 + i * (bh + 20);
+    var blink = b.t < 60 && Math.floor(b.t / 5) % 2 === 0;
+    ctx.globalAlpha = blink ? 0.4 : 1;
+    if (sprReady(b.k)) ctx.drawImage(SPR[b.k], x0, y - 2, 16, 16);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(x0 + 20, y + 3, bw, bh);
+    ctx.fillStyle = b.c;
+    ctx.fillRect(x0 + 20, y + 3, bw * (b.t / b.max), bh);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1;
+    ctx.strokeRect(x0 + 20.5, y + 3.5, bw - 1, bh - 1);
+    void gap;
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+
 // ---- 爆弾 ----
 function placeBomb(x, y) {
   var c = clamp(Math.floor(x / TILE), 1, COLS - 2), r = clamp(Math.floor(y / TILE), 1, ROWS - 2);
@@ -1423,7 +1575,7 @@ function damageEnemy(e, dmg, silent) {
     SFX.kill();
     var dropChance = e.type === 'boss' ? 1 : (e.type === 'tank' ? 0.5 : 0.09);
     if (Math.random() < dropChance) dropItem(e.x, e.y);
-    if (e.type === 'boss') { dropItem(e.x + 20, e.y); dropItem(e.x - 20, e.y); }
+    if (e.type === 'boss') { dropItem(e.x + 20, e.y); dropTimedItem(e.x - 20, e.y); }   // GH-003 1個は時限バフ確定
     updateStatChips();
     checkAch();
   }
@@ -1434,6 +1586,7 @@ function playerSpeed() { return 2.6 + (player.speedLv - 1) * 0.42; }
 function bulletDmg() { return 1 + (player.powLv - 1) * 0.65; }
 function fireInterval() { return Math.max(5, Math.round(15 * Math.pow(0.88, player.rofLv - 1))); }
 function tryShoot() {
+  if (player.laserT > 0) { fireLaser(); return; }   // GH-003 レーザー中は通常弾を撃たない
   if (G.frame - player.lastShot < fireInterval()) return;
   player.lastShot = G.frame;
   var n = player.mulLv;
@@ -1445,7 +1598,8 @@ function tryShoot() {
     bullets.push({
       x: player.x + Math.cos(a) * 16, y: player.y + Math.sin(a) * 16,
       vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-      dmg: bulletDmg(), pierce: player.prcLv, hitIds: []
+      dmg: bulletDmg(), pierce: player.prcLv, hitIds: [],
+      bounce: player.bounceT > 0 ? 1 : 0   // GH-003 反射弾
     });
   }
   SFX.shoot();
@@ -1472,7 +1626,7 @@ function startGame() {
   G = newGameState();
   G.state = 'play';
   player = newPlayer();
-  bullets = []; ebullets = []; enemies = []; items = []; particles = []; spawnMarks = []; floats = []; telegraphs = []; dropFx = []; shockFx = [];
+  bullets = []; ebullets = []; enemies = []; items = []; particles = []; spawnMarks = []; floats = []; telegraphs = []; dropFx = []; shockFx = []; orbitHits = {}; laserBeam = null;
   bombs = []; blasts = []; fxBlasts = [];
   resetRunStats();
   genMap();
@@ -1672,6 +1826,10 @@ function update() {
   }
   if (player.iframes > 0) player.iframes--;
   if (player.shield > 0) player.shield--;
+  // GH-003 時限バフ
+  if (player.bounceT > 0) player.bounceT--;
+  if (player.orbitT > 0) { player.orbitT--; player.orbitA += 0.0698; updateOrbit(); }   // 1.5秒で1周
+  if (player.laserT > 0) { player.laserT--; if (player.laserT2 > 0) player.laserT2--; }
   if (mouse.down || keys[' ']) tryShoot();
 
   // --- コンボ減衰 ---
@@ -1683,6 +1841,16 @@ function update() {
     b.x += b.vx; b.y += b.vy;
     var c = Math.floor(b.x / TILE), r = Math.floor(b.y / TILE);
     var s = solid(c, r);
+    // GH-003 反射弾: 壁・ブロックで1回だけ跳ね返る(敵の反射弾と同じ考え方)
+    if (s && b.bounce > 0) {
+      b.bounce--;
+      b.x -= b.vx; b.y -= b.vy;                                   // ぶつかる直前まで戻す
+      var hx = solid(Math.floor((b.x + b.vx) / TILE), Math.floor(b.y / TILE));
+      if (hx) b.vx = -b.vx; else b.vy = -b.vy;
+      b.bounced = true; b.hitIds = [];                            // 反射後は同じ敵にもう一度当たれる
+      spawnParticles(b.x, b.y, '#7CFF4F', 4, 1.2); SFX.bounce();
+      continue;
+    }
     if (s === 1) { spawnParticles(b.x, b.y, '#aab', 3, 0.8); bullets.splice(i, 1); continue; }
     if (s === 2) {
       grid[r][c] = 0;
@@ -2090,9 +2258,16 @@ function draw() {
 
   drawTelegraphs();   // GH-002: 予告は敵の上に描く(ボス周りのリングが隠れないように)
   drawDropFx();
+  drawLaser();   // GH-003 レーザーは自機弾の位置で描く
   // プレイヤー弾
   for (var i8 = 0; i8 < bullets.length; i8++) {
     var b = bullets[i8];
+    if (b.bounced) {   // GH-003 反射後は緑にして見分ける
+      ctx.save(); ctx.shadowColor = '#7CFF4F'; ctx.shadowBlur = 10;
+      ctx.fillStyle = '#d7ffbe';
+      ctx.beginPath(); ctx.arc(b.x, b.y, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore(); continue;
+    }
     if (sprReady('bullet_p')) {
       ctx.drawImage(SPR['bullet_p'], b.x - 7, b.y - 7, 14, 14);
     } else {
@@ -2176,6 +2351,7 @@ function draw() {
     }
   }
 
+  drawOrbit();   // GH-003 旋回レーザーは自機の上に
   // パーティクル
   for (var ip = 0; ip < particles.length; ip++) {
     var p = particles[ip];
@@ -2207,6 +2383,7 @@ function draw() {
 
   ctx.restore();
 
+  drawBuffBars();   // GH-003 効果中のバフの残り時間
   // ボスHPバー(Production Kit: シアン枠・赤ゲージ)
   for (var bi = 0; bi < enemies.length; bi++) {
     var be = enemies[bi];
