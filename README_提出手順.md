@@ -160,7 +160,7 @@ npx cap open ios
   Bundle Identifier が App Store Connect の登録と一致しているか確認
 - 実機で音が出ない → iPhone のサイレントスイッチを確認(仕様上、初回タップ後に音が有効になります)
 
-## App Store Connect で毎回やること(v1.2 以降)
+## App Store Connect で毎回やること(v1.3 以降)
 
 - **マーケティングURL に `https://pochitto356.github.io/` を入れる**(バージョン情報ページ)。
   AdMob はこのドメインの `app-ads.txt` を見に行く。空欄だと「広告配信を制限しています」のまま広告がほぼ出ない。
