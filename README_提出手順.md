@@ -159,3 +159,10 @@ npx cap open ios
 - Xcode で署名エラー → Signing & Capabilities の Team が選ばれているか、
   Bundle Identifier が App Store Connect の登録と一致しているか確認
 - 実機で音が出ない → iPhone のサイレントスイッチを確認(仕様上、初回タップ後に音が有効になります)
+
+## App Store Connect で毎回やること(v1.2 以降)
+
+- **マーケティングURL に `https://pochitto356.github.io/` を入れる**(バージョン情報ページ)。
+  AdMob はこのドメインの `app-ads.txt` を見に行く。空欄だと「広告配信を制限しています」のまま広告がほぼ出ない。
+  反映後、AdMob の「アプリ」→ GRID HUNTER →「アップデートを確認」を押す(クローラ検知に最大7日)。
+- 審査Notes: リワード広告(ゲームオーバー時のコンティニュー)はユーザーが自分で選んで視聴する任意のもの、と一言書いておく。

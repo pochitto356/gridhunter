@@ -229,6 +229,12 @@
   .bigbtn.home { background-image:url('img/ui_btn_sub.png'); }   /* 副ボタンは控えめな枠 */
   .bigbtn.home { color:#bcd; text-shadow:none; }
   .bigbtn.home:hover { color:var(--gh-cyan); }
+  /* コンティニュー(リワード広告): 主ボタンより目立つ黄色。リザルトの一番上に置く */
+  #continueRow { margin:8px 0 2px; }
+  .bigbtn.continue { color:var(--gh-yellow); text-shadow:0 0 8px rgba(255,215,94,.7); letter-spacing:1px; padding:10px 28px; animation:continuePulse 1.6s ease-in-out infinite; }
+  .bigbtn.continue[disabled] { opacity:.5; animation:none; cursor:default; }
+  #continueNote { color:#9ab; font-size:11px; margin-top:4px; }
+  @keyframes continuePulse { 0%,100% { filter:brightness(1); } 50% { filter:brightness(1.25); } }
   html, body { overscroll-behavior:none; }
   body {
     padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
@@ -378,6 +384,10 @@
         <button class="ctl share" id="saveCardBtn">&#128190; 画像を保存</button>
         <button class="ctl share" id="shareBtn">&#128228; シェア</button>
         <button class="ctl share" id="shareXBtn">&#120143; ポスト</button>
+      </div>
+      <div id="continueRow" class="hidden">
+        <button class="bigbtn continue" id="continueBtn">&#128250; 広告を見てコンティニュー</button>
+        <div id="continueNote">ライフ全回復でこの場から再開(1プレイ1回)</div>
       </div>
       <div id="overBtns">
         <button class="bigbtn" id="retryBtn">RETRY (R)</button>
@@ -696,7 +706,8 @@ function newGameState() {
     flash: 0,
     waveBreak: 0,     // ウェーブ間の待ちフレーム
     spawnQueue: [],
-    spawnTimer: 0
+    spawnTimer: 0,
+    continued: false  // リワード広告でのコンティニュー使用済み(1プレイ1回)
   };
 }
 G = newGameState();
@@ -1713,10 +1724,60 @@ function gameOver() {
   document.getElementById('overStats').innerHTML = stats;
   updateModeBests();
   persistSave();
+  updateContinueRow();
   setTimeout(function () {
     if (G.state === 'over') document.getElementById('over').classList.remove('hidden');
   }, 700);
 }
+// ---- コンティニュー(リワード広告) ----
+// 条件: ネイティブ版 / ゲームオーバー(タイムアタッククリアは除く) / このプレイでまだ使っていない / 広告が読み込み済み
+var CONTINUE_TA_PENALTY = 10 * 60; // タイムアタックでは+10秒のペナルティ(広告視聴中は時計が止まるため)
+function canContinue() {
+  return G.state === 'over' && !G.cleared && !G.continued && typeof MZ !== 'undefined' && MZ.rewardAvailable();
+}
+function updateContinueRow() {
+  var row = document.getElementById('continueRow');
+  var note = document.getElementById('continueNote');
+  if (canContinue()) {
+    row.classList.remove('hidden');
+    note.textContent = G.mode === 'time'
+      ? 'ライフ全回復でこの場から再開(1プレイ1回・タイムに+10秒)'
+      : 'ライフ全回復でこの場から再開(1プレイ1回)';
+    document.getElementById('continueBtn').disabled = false;
+  } else {
+    row.classList.add('hidden');
+  }
+}
+function doContinue() {
+  if (G.state !== 'over' || G.continued) return;
+  G.continued = true;
+  G.state = 'play';
+  G.paused = false;
+  if (G.mode === 'time') G.time += CONTINUE_TA_PENALTY;
+  player.hp = player.maxHp;
+  player.iframes = 90;
+  player.shield = Math.max(player.shield, 180); // 3秒のシールドで復帰直後の即死を防ぐ
+  ebullets = []; bombs = [];                     // 画面上の敵弾・爆弾は消す(敵と盤面はそのまま)
+  G.combo = 0; G.comboT = 0;
+  G.flash = 0.6;
+  spawnParticles(player.x, player.y, '#ffd75e', 40, 3);
+  spawnParticles(player.x, player.y, '#30E6FF', 30, 2.4);
+  document.getElementById('over').classList.add('hidden');
+  document.getElementById('continueRow').classList.add('hidden');
+  updateHearts(); updateStatChips(); updateHud();
+  showBanner('CONTINUE!');
+  SFX.wave();
+}
+document.getElementById('continueBtn').addEventListener('click', function () {
+  if (!canContinue()) { updateContinueRow(); return; }
+  var b = document.getElementById('continueBtn');
+  b.disabled = true;
+  MZ.showReward(function (earned) {
+    b.disabled = false;
+    if (earned) doContinue();
+    else { addToast('広告を最後まで見るとコンティニューできます'); updateContinueRow(); }
+  });
+});
 function timeAttackClear() {
   G.state = 'over';
   G.cleared = true;
@@ -1740,6 +1801,7 @@ function timeAttackClear() {
     (runStats.achThisRun > 0 ? '<br>&#127942; 今回の実績解除: ' + runStats.achThisRun + '件' : '');
   updateModeBests();
   persistSave();
+  updateContinueRow(); // クリア時は出さない(cleared=true)
   setTimeout(function () {
     if (G.state === 'over') document.getElementById('over').classList.remove('hidden');
   }, 700);
@@ -2575,43 +2637,109 @@ var MZ = {
   // ★★★ 公開前に必ず自分のAdMob広告ユニットIDに差し替えてください ★★★
   // 下記はGoogle公式のテスト用ID(そのままでもテスト広告が表示されます)
   BANNER_AD_ID: 'ca-app-pub-7792368657314009/1646615936',
+  REWARD_AD_ID: 'ca-app-pub-7792368657314009/1566154062', // リワード「GRID HUNTER コンティニュー」
   IS_TESTING: false,
   PRODUCT_ID: 'gridhunter_remove_ads', // App Store Connect で作る非消耗型課金のID
   native: false, adsRemoved: false, price: '',
+  // ブラウザで ?fakeads=1 を付けると、広告SDKなしでリワード広告の流れを模擬する(動作確認用)
+  fakeAds: /[?&]fakeads=1/.test(location.search),
   admob: function () {
     return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob) || null;
   },
   init: function () {
     this.adsRemoved = !!loadSave().adsRemoved;
     this.native = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    if (this.fakeAds) { this.rewardReady = true; return; }
     if (!this.native) return; // Web/PWA版では広告も購入UIも出さない
     this.bootIAP();
-    if (!this.adsRemoved) {
-      this.showBanner();
-      document.getElementById('shopRow').classList.remove('hidden');
-    }
+    if (!this.adsRemoved) document.getElementById('shopRow').classList.remove('hidden');
+    this.initAds();
+  },
+  // AdMob SDKの初期化。広告削除購入済みでも初期化はする(リワード広告はユーザーが自分で選ぶものなので提供する)
+  adsInited: false,
+  initAds: function () {
+    var AdMob = this.admob(), self = this;
+    if (!AdMob || this.adsInited) return;
+    this.adsInited = true;
+    try {
+      var attReq = (AdMob.requestTrackingAuthorization ? AdMob.requestTrackingAuthorization().catch(function(){}) : Promise.resolve());
+      attReq.then(function(){ return AdMob.initialize({}); }).then(function () {
+        self.setupReward();
+        if (!self.adsRemoved) self.showBanner();
+      }).catch(function () {});
+    } catch (e) {}
   },
   showBanner: function () {
     var AdMob = this.admob(), self = this;
     if (!AdMob) return;
     try {
-      var attReq = (AdMob.requestTrackingAuthorization ? AdMob.requestTrackingAuthorization().catch(function(){}) : Promise.resolve());
-      attReq.then(function(){ return AdMob.initialize({}); }).then(function () {
-        try {
-          AdMob.addListener('bannerAdSizeChanged', function (info) {
-            document.body.style.paddingBottom = ((info && info.height) ? info.height : 60) + 'px';
-            if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 50);
-          });
-        } catch (e) {}
-        return AdMob.showBanner({
-          adId: self.BANNER_AD_ID,
-          adSize: 'ADAPTIVE_BANNER',
-          position: 'BOTTOM_CENTER',
-          margin: 0,
-          isTesting: self.IS_TESTING
-        });
+      AdMob.addListener('bannerAdSizeChanged', function (info) {
+        document.body.style.paddingBottom = ((info && info.height) ? info.height : 60) + 'px';
+        if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 50);
+      });
+    } catch (e) {}
+    try {
+      AdMob.showBanner({
+        adId: self.BANNER_AD_ID,
+        adSize: 'ADAPTIVE_BANNER',
+        position: 'BOTTOM_CENTER',
+        margin: 0,
+        isTesting: self.IS_TESTING
       }).catch(function () {});
     } catch (e) {}
+  },
+  // ---- リワード広告(コンティニュー) ----
+  // 流れ: 起動時に prepare → 結果画面で「広告を見て…」→ show → 最後まで見たら Rewarded → Dismissed で復帰 → 次を prepare
+  rewardReady: false, rewardLoading: false, rewardEarned: false, rewardCb: null,
+  rewardAvailable: function () { return this.fakeAds || (this.native && this.rewardReady); },
+  setupReward: function () {
+    var AdMob = this.admob(), self = this;
+    if (!AdMob) return;
+    var on = function (ev, fn) { try { AdMob.addListener(ev, fn); } catch (e) {} };
+    on('onRewardedVideoAdLoaded', function () { self.rewardReady = true; self.rewardLoading = false; if (typeof updateContinueRow === 'function') updateContinueRow(); });
+    on('onRewardedVideoAdFailedToLoad', function () {
+      self.rewardReady = false; self.rewardLoading = false;
+      setTimeout(function () { self.prepareReward(); }, 30000); // 30秒後に再試行
+    });
+    on('onRewardedVideoAdReward', function () { self.rewardEarned = true; });
+    on('onRewardedVideoAdFailedToShow', function () { self.rewardReady = false; self.finishReward(false); self.prepareReward(); });
+    on('onRewardedVideoAdDismissed', function () {
+      self.rewardReady = false;
+      var earned = self.rewardEarned;
+      self.finishReward(earned);
+      self.prepareReward();
+    });
+    this.prepareReward();
+  },
+  prepareReward: function () {
+    var AdMob = this.admob(), self = this;
+    if (!AdMob || this.rewardReady || this.rewardLoading) return;
+    this.rewardLoading = true;
+    try {
+      AdMob.prepareRewardVideoAd({ adId: this.REWARD_AD_ID, isTesting: this.IS_TESTING })
+        .catch(function () { self.rewardLoading = false; });
+    } catch (e) { this.rewardLoading = false; }
+  },
+  finishReward: function (earned) {
+    var cb = this.rewardCb;
+    this.rewardCb = null; this.rewardEarned = false;
+    if (cb) { try { cb(!!earned); } catch (e) {} }
+  },
+  showReward: function (cb) {
+    var self = this;
+    if (this.fakeAds) { // 動作確認用: 1.2秒後に「最後まで見た」扱い
+      addToast('(テスト) 広告を再生中…');
+      setTimeout(function () { cb(true); }, 1200);
+      return;
+    }
+    var AdMob = this.admob();
+    if (!AdMob || !this.rewardReady) { cb(false); return; }
+    this.rewardCb = cb; this.rewardEarned = false;
+    try {
+      AdMob.showRewardVideoAd()
+        .then(function (item) { if (item && item.amount > 0) self.rewardEarned = true; }) // 復帰処理自体は Dismissed で行う
+        .catch(function () { self.rewardReady = false; self.finishReward(false); self.prepareReward(); });
+    } catch (e) { this.rewardReady = false; this.finishReward(false); this.prepareReward(); }
   },
   hideBanner: function () {
     var AdMob = this.admob();
