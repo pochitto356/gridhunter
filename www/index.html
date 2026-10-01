@@ -135,6 +135,21 @@
   }
   #overStats { font-size:15px; color:#ccd; line-height:2; margin-top:6px; }
   #overStats b { color:var(--gh-yellow); font-size:20px; }
+  #overRow { display:flex; align-items:center; justify-content:center; gap:12px; }
+  #rankPanel {
+    background:var(--gh-panel); border:1px solid var(--gh-line); clip-path:var(--gh-cut);
+    padding:6px 10px; cursor:pointer; font-size:12px; color:#9bc; text-align:center; min-width:190px;
+  }
+  #rankPanel .rpHead { color:var(--gh-cyan); font-weight:700; letter-spacing:1px; margin-bottom:4px; }
+  #rankPanel table { border-collapse:collapse; margin:0 auto; }
+  #rankPanel th { color:#789; font-weight:400; font-size:11px; padding:1px 6px; }
+  #rankPanel td { padding:2px 6px; vertical-align:top; }
+  #rankPanel .rk { color:#fff; font-weight:700; font-size:14px; }
+  #rankPanel .top { display:block; color:var(--gh-yellow); font-size:10px; max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #rankPanel .rpNote { color:#678; font-size:10px; margin-top:3px; }
+  #overAch { font-size:13px; color:#ccd; line-height:1.6; margin-top:2px; }
+  #overStats #overAch b.achGet { font-size:13px; color:var(--gh-yellow); }
+  #overAch i { color:var(--gh-purple); font-style:normal; font-size:12px; }
   .keycap {
     display:inline-block; background:var(--gh-panel2); border:1px solid var(--gh-line); border-bottom-width:3px;
     border-radius:3px; padding:1px 7px; font-size:12px; color:#dff; margin:0 2px;
@@ -280,10 +295,43 @@
     #overStats { font-size:12px; line-height:1.6; margin-top:2px; }
     #overStats b { font-size:16px; }
     #cardImg { width:min(230px, 52%); margin:5px 0 3px; }
+    #overRow #cardImg { width:min(210px, 40%); }
+    #rankPanel { min-width:0; padding:4px 6px; font-size:10px; }
+    #rankPanel .rk { font-size:12px; }
+    #rankPanel th { font-size:9px; padding:1px 4px; } #rankPanel td { padding:1px 4px; }
+    #rankPanel .top { font-size:9px; max-width:80px; }
     #shareRow { margin:4px 0 1px; gap:6px; }
     .ctl.share { font-size:11px; padding:5px 9px; }
     #over .bigbtn { margin-top:5px; padding:7px 22px; }
   }
+  /* iPhone横持ちなど高さが足りない画面: HUDとステータスを盤面の左右の余白へ移し、盤面を画面の高さいっぱいに使う。
+     列の位置(--lx/--rx/--cw/--ty)は fitCanvas() が盤面の位置から計算して入れる */
+  body.side #hud {
+    position:fixed; left:0; top:0; width:0; height:0; max-width:none; padding:0;
+    background:none; display:block; z-index:10;
+  }
+  body.side #hearts {
+    position:fixed; left:var(--lx); width:var(--cw); top:var(--ty);
+    min-width:0; text-align:center; font-size:15px; letter-spacing:0; line-height:1.1;
+  }
+  body.side #mid { position:fixed; left:var(--lx); width:var(--cw); top:calc(var(--ty) + 22px); }
+  body.side #score { font-size:19px; }
+  body.side #combo { font-size:11px; height:14px; }
+  body.side #right {
+    position:fixed; left:var(--rx); width:var(--cw); top:var(--ty);
+    min-width:0; flex-direction:column; align-items:center; gap:3px;
+  }
+  body.side #wave { font-size:14px; }
+  body.side #timer { font-size:13px; min-width:0; text-align:center; }
+  body.side #right button.ctl { padding:3px 9px; font-size:13px; }
+  body.side #muteBtn { order:3; } body.side #pauseBtn { order:4; }
+  body.side #stats {
+    position:fixed; left:var(--lx); width:var(--cw); top:auto; bottom:calc(env(safe-area-inset-bottom) + 4px);
+    max-width:none; display:grid; grid-template-columns:1fr 1fr; gap:2px; font-size:9px;
+  }
+  body.side .chip { padding:1px 3px; text-align:center; white-space:nowrap; overflow:hidden; }
+  body.side canvas { max-height:none; max-width:none; }
+  body.side .chip .cl { display:none; }   /* 横の列では文字を出さずアイコンと数字だけ(小さい文字は読めないため) */
 </style>
 </head>
 <body>
@@ -378,7 +426,10 @@
     </div>
     <div id="over" class="overlay hidden">
       <h2 id="overTitle">GAME OVER</h2>
-      <img id="cardImg" alt="リザルトカード">
+      <div id="overRow">
+        <img id="cardImg" alt="リザルトカード">
+        <div id="rankPanel" class="hidden"></div>
+      </div>
       <div id="overStats"></div>
       <div id="shareRow">
         <button class="ctl share" id="saveCardBtn">&#128190; 画像を保存</button>
@@ -400,12 +451,12 @@
     </div>
   </div>
   <div id="stats">
-    <span class="chip">&#128293; 火力 <b id="stPow">1</b></span>
-    <span class="chip">&#9889; 連射 <b id="stRof">1</b></span>
-    <span class="chip">&#10021; 拡散 <b id="stMul">1</b></span>
-    <span class="chip">&#128168; 速度 <b id="stSpd">1</b></span>
-    <span class="chip">&#8623; 貫通 <b id="stPrc">0</b></span>
-    <span class="chip">&#128128; 撃破 <b id="stKill">0</b></span>
+    <span class="chip">&#128293;<span class="cl"> 火力</span> <b id="stPow">1</b></span>
+    <span class="chip">&#9889;<span class="cl"> 連射</span> <b id="stRof">1</b></span>
+    <span class="chip">&#10021;<span class="cl"> 拡散</span> <b id="stMul">1</b></span>
+    <span class="chip">&#128168;<span class="cl"> 速度</span> <b id="stSpd">1</b></span>
+    <span class="chip">&#8623;<span class="cl"> 貫通</span> <b id="stPrc">0</b></span>
+    <span class="chip">&#128128;<span class="cl"> 撃破</span> <b id="stKill">0</b></span>
   </div>
 </div>
 
@@ -1055,9 +1106,9 @@ var ACHIEVEMENTS = [
   { id: 'ta_fast',  name: '音速の狩人', desc: 'タイムアタックを5分以内にクリア', title: 'ソニック', cond: function (s) { return s.taFastClear; } }
 ];
 var unlockedAch = {}; // セッション中は再プレイしても保持
-var runStats = { maxCombo: 0, blocksBroken: 0, itemsCollected: 0, nukesUsed: 0, bossKills: 0, noDmgClear: false, tookDmgThisWave: false, achThisRun: 0, taClear: false, taFastClear: false };
+var runStats = { maxCombo: 0, blocksBroken: 0, itemsCollected: 0, nukesUsed: 0, bossKills: 0, noDmgClear: false, tookDmgThisWave: false, achThisRun: 0, achList: [], taClear: false, taFastClear: false };
 function resetRunStats() {
-  runStats = { maxCombo: 0, blocksBroken: 0, itemsCollected: 0, nukesUsed: 0, bossKills: 0, noDmgClear: false, tookDmgThisWave: false, achThisRun: 0, taClear: false, taFastClear: false };
+  runStats = { maxCombo: 0, blocksBroken: 0, itemsCollected: 0, nukesUsed: 0, bossKills: 0, noDmgClear: false, tookDmgThisWave: false, achThisRun: 0, achList: [], taClear: false, taFastClear: false };
 }
 function achSnapshot() {
   return {
@@ -1077,12 +1128,21 @@ function checkAch() {
     if (a.cond(s)) {
       unlockedAch[a.id] = true;
       runStats.achThisRun++;
-      addToast('&#127942; 実績解除: <b>' + a.name + '</b>' + (a.title ? ' / 称号「' + a.title + '」' : ''));
+      runStats.achList.push(a);
+      // プレイ中は盤面に重ねない(敵が見えなくなるため)。結果画面でまとめて表示する
+      if (G.state !== 'play') addToast('&#127942; 実績解除: <b>' + a.name + '</b>' + (a.title ? ' / 称号「' + a.title + '」' : ''));
       SFX.ach();
       updateTitleDisplay();
       persistSave();
     }
   }
+}
+function achRunHtml() {
+  var L = runStats.achList || [];
+  if (!L.length) return '';
+  var parts = [];
+  for (var i = 0; i < L.length; i++) parts.push('<b class="achGet">' + L[i].name + '</b>' + (L[i].title ? '<i>(称号「' + L[i].title + '」)</i>' : ''));
+  return '<div id="overAch">&#127942; 今回の実績解除: ' + parts.join(' / ') + '</div>';
 }
 function currentTitle() {
   var t = null;
@@ -1715,7 +1775,7 @@ function gameOver() {
     bestScore = Math.max(bestScore, G.score);
     stats = 'ベストスコア: <b>' + bestScore.toLocaleString() + '</b>';
   }
-  if (runStats.achThisRun > 0) stats += '<br>&#127942; 今回の実績解除: ' + runStats.achThisRun + '件';
+  stats += achRunHtml();
   var ot = document.getElementById('overTitle');
   ot.textContent = 'GAME OVER';
   ot.style.color = '';
@@ -1725,6 +1785,7 @@ function gameOver() {
   updateModeBests();
   persistSave();
   updateContinueRow();
+  gcAfterRun();
   setTimeout(function () {
     if (G.state === 'over') document.getElementById('over').classList.remove('hidden');
   }, 700);
@@ -1798,10 +1859,11 @@ function timeAttackClear() {
   document.getElementById('overStats').innerHTML =
     'クリアタイム: <b>' + fmtTime(G.time) + '</b>' +
     (isBest ? ' <span style="color:#8dff6d">NEW RECORD!</span>' : ' / ベスト: ' + fmtTime(bestTime)) +
-    (runStats.achThisRun > 0 ? '<br>&#127942; 今回の実績解除: ' + runStats.achThisRun + '件' : '');
+    achRunHtml();
   updateModeBests();
   persistSave();
   updateContinueRow(); // クリア時は出さない(cleared=true)
+  gcAfterRun();
   setTimeout(function () {
     if (G.state === 'over') document.getElementById('over').classList.remove('hidden');
   }, 700);
@@ -2547,18 +2609,39 @@ function fitCanvas() {
     var cvEl = document.getElementById('cv');
     var hudEl = document.getElementById('hud');
     var statsEl = document.getElementById('stats');
-    var bodyStyle = window.getComputedStyle(document.body);
-    var padV = (parseFloat(bodyStyle.paddingTop) || 0) + (parseFloat(bodyStyle.paddingBottom) || 0);
-    var padH = (parseFloat(bodyStyle.paddingLeft) || 0) + (parseFloat(bodyStyle.paddingRight) || 0);
+    var bodyEl = document.body;
+    var bodyStyle = window.getComputedStyle(bodyEl);
+    var padT = parseFloat(bodyStyle.paddingTop) || 0, padB = parseFloat(bodyStyle.paddingBottom) || 0;
+    var padL = parseFloat(bodyStyle.paddingLeft) || 0, padR = parseFloat(bodyStyle.paddingRight) || 0;
+    var padV = padT + padB, padH = padL + padR;
     var vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
     var vw = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+    // 1) 通常レイアウト(HUDが上、ステータスが下)で入る大きさ
+    var wasSide = bodyEl.classList.contains('side');
+    if (wasSide) bodyEl.classList.remove('side');
     var used = (hudEl ? hudEl.offsetHeight : 0) + (statsEl ? statsEl.offsetHeight : 0) + 18;
-    var availH = vh - padV - used;
     var availW = vw - padH - 8;
-    if (availH < 80 || availW < 80) return;
-    var scale = Math.min(availW / 874, availH / 598, 1);
+    var normalScale = Math.min(availW / 874, (vh - padV - used) / 598, 1);
+    // 2) サイドレイアウト(HUDを盤面の左右へ)で入る大きさ
+    //    左右の列は最低84px確保し、足りなければ盤面のほうを少し縮める(iPhone SEなど)
+    var sideScale = Math.min((vh - padV - 8) / 598, (vw - padH - 2 * (84 + 8)) / 874, 1);
+    var useSide = normalScale < 0.98 && sideScale > normalScale * 1.05;
+    var scale = useSide ? sideScale : normalScale;
+    if (!(scale > 0.1)) return;
+    bodyEl.classList.toggle('side', useSide);
     cvEl.style.width = Math.floor(874 * scale) + 'px';
     cvEl.style.height = Math.floor(598 * scale) + 'px';
+    if (useSide) {
+      var r = cvEl.getBoundingClientRect();
+      var lx = padL + 4, rx = r.right + 8;
+      var cw = Math.max(70, Math.min(r.left - 8 - lx, vw - padR - 4 - rx));
+      var st = bodyEl.style;
+      st.setProperty('--lx', (r.left - 8 - cw) + 'px');
+      st.setProperty('--rx', rx + 'px');
+      st.setProperty('--cw', cw + 'px');
+      st.setProperty('--ty', (r.top + 2) + 'px');
+      bodyEl.classList.toggle('narrow', cw < 116);
+    }
   } catch (e) {}
 }
 function fitCanvasAndPads() { fitCanvas(); updateAnchors(); }
@@ -2826,6 +2909,113 @@ var MZ = {
 };
 document.getElementById('buyRemoveAdsBtn').addEventListener('click', function () { MZ.buy(); });
 document.getElementById('restoreBtn').addEventListener('click', function () { MZ.restore(); });
+
+// ================= Game Center ランキング(iOSのみ) =================
+// ネイティブ側は plugins/grid-gamecenter(GameCenterPlugin.swift)。
+// 週間: 定期リーダーボード(7日ごとにリセット) / 月間: 暦の月ごとに別のリーダーボード(日本時間で切替)。
+// スコアアタックは「コンティニューなし(nc)」「全体(all)」の2部門、タイムアタックはクリアタイム(1/100秒, 小さいほど上位)。
+// ブラウザで ?fakegc=1 を付けると、ダミーの順位でゲームオーバー画面の表示を確認できる。
+var GC = {
+  fake: /[?&]fakegc=1/.test(location.search),
+  ok: false, _sign: null,
+  plugin: function () { return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.GameCenter) || null; },
+  native: function () { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform() && this.plugin()); },
+  ym: function () {
+    var d = new Date(Date.now() + 9 * 3600 * 1000); // 日本時間
+    var m = d.getUTCMonth() + 1;
+    return '' + d.getUTCFullYear() + (m < 10 ? '0' : '') + m;
+  },
+  ids: function (mode) {
+    var ym = this.ym();
+    if (mode === 'time') return { wTa: 'gh.weekly.ta', mTa: 'gh.m.' + ym + '.ta' };
+    return { wNc: 'gh.weekly.nc', mNc: 'gh.m.' + ym + '.nc', wAll: 'gh.weekly.all', mAll: 'gh.m.' + ym + '.all' };
+  },
+  signIn: function () {
+    var self = this;
+    if (this.fake) { this.ok = true; return Promise.resolve(true); }
+    if (!this.native()) return Promise.resolve(false);
+    if (!this._sign) {
+      this._sign = this.plugin().signIn().then(function (r) {
+        self.ok = !!(r && r.ok);
+        if (!self.ok) self._sign = null;
+        return self.ok;
+      }).catch(function () { self._sign = null; return false; });
+    }
+    return this._sign;
+  },
+  submit: function (score, ids) {
+    if (this.fake || !this.ok || !ids.length || !(score > 0)) return Promise.resolve(false);
+    return this.plugin().submit({ score: Math.floor(score), ids: ids }).then(function (r) { return !!(r && r.ok); }).catch(function () { return false; });
+  },
+  ranks: function (ids) {
+    if (this.fake) {
+      var o = {};
+      ids.forEach(function (id, i) { o[id] = { rank: 3 + i * 5, total: 120 + i * 40, topName: 'GridMaster' + i, topScore: /\.ta$/.test(id) ? 18342 : 254300 - i * 30000 }; });
+      return Promise.resolve(o);
+    }
+    if (!this.ok) return Promise.resolve(null);
+    return this.plugin().ranks({ ids: ids }).then(function (r) { return (r && r.ranks) || null; }).catch(function () { return null; });
+  },
+  show: function (id) {
+    if (this.fake || !this.ok) return;
+    try { this.plugin().show({ id: id || '' }); } catch (e) {}
+  }
+};
+function fmtCs(cs) { return fmtTime(cs * 60 / 100); }
+// ゲームオーバー/クリア時: スコアを送ってから順位を取り、結果画面に表示する
+function gcAfterRun() {
+  var panel = document.getElementById('rankPanel');
+  panel.classList.add('hidden');
+  if (!GC.fake && !GC.native()) return;
+  var mode = G.mode, ids = GC.ids(mode), list, score;
+  if (mode === 'time') {
+    if (!G.cleared) return;                       // タイムはクリアしたときだけ記録
+    score = Math.floor(G.time * 100 / 60);        // 1/100秒
+    list = [ids.wTa, ids.mTa];
+  } else {
+    score = G.score;
+    list = [ids.wAll, ids.mAll];
+    if (!G.continued) list.push(ids.wNc, ids.mNc); // コンティニューなしの部門は使っていないときだけ
+  }
+  var runId = ++gcRunSeq;
+  GC.signIn().then(function (ok) {
+    if (!ok) return null;
+    return GC.submit(score, list).then(function () {
+      var all = [];
+      for (var k in ids) all.push(ids[k]);
+      return GC.ranks(all);
+    });
+  }).then(function (r) {
+    if (!r || runId !== gcRunSeq || G.state !== 'over') return;
+    renderRankPanel(mode, ids, r);
+  });
+}
+var gcRunSeq = 0;
+function rankCell(info, isTime) {
+  if (!info) return '<span class="rk">-</span>';
+  var me = info.rank ? info.rank + '位' : '-';
+  var tot = info.total ? '<small> / ' + info.total + '</small>' : '';
+  var top = info.topName ? '<span class="top">&#128081; ' + escHtml(info.topName) + '</span><span class="top">' + (isTime ? fmtCs(info.topScore) : Number(info.topScore).toLocaleString()) + '</span>' : '';
+  return '<span class="rk">' + me + '</span>' + tot + top;
+}
+function escHtml(t) { return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function renderRankPanel(mode, ids, r) {
+  var p = document.getElementById('rankPanel');
+  var h = '<div class="rpHead">&#127942; ランキング</div><table><tr><th></th><th>今週</th><th>今月</th></tr>';
+  if (mode === 'time') {
+    h += '<tr><th>クリアタイム</th><td>' + rankCell(r[ids.wTa], true) + '</td><td>' + rankCell(r[ids.mTa], true) + '</td></tr>';
+  } else {
+    h += '<tr><th>コンティニュー<br>なし</th><td>' + rankCell(r[ids.wNc]) + '</td><td>' + rankCell(r[ids.mNc]) + '</td></tr>';
+    h += '<tr><th>あり<br>(全体)</th><td>' + rankCell(r[ids.wAll]) + '</td><td>' + rankCell(r[ids.mAll]) + '</td></tr>';
+  }
+  h += '</table><div class="rpNote">タップでGame Centerを開く</div>';
+  p.innerHTML = h;
+  p.classList.remove('hidden');
+}
+document.getElementById('rankPanel').addEventListener('click', function () { GC.show(''); });
+// 起動から少し待ってサインイン(起動直後のATTダイアログと重ならないように)
+setTimeout(function () { GC.signIn(); }, 4000);
+
 if (document.readyState === 'complete') { MZ.init(); }
 else { window.addEventListener('load', function () { MZ.init(); }); }
 // ---- セーブデータ読み込み ----
