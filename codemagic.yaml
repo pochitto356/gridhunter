@@ -24,6 +24,25 @@ workflows:
         script: npx @capacitor/assets generate --ios --iconBackgroundColor '#0d0d16' --splashBackgroundColor '#0d0d16'
       - name: Capacitor同期
         script: npx cap sync ios
+      - name: Game Center のエンタイトルメントを追加
+        script: |
+          # ランキング(plugins/grid-gamecenter)用。App ID 側でも Game Center を有効にしてある
+          cat > ios/App/App/App.entitlements <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+          	<key>com.apple.developer.game-center</key>
+          	<true/>
+          </dict>
+          </plist>
+          PLIST
+          PBX=ios/App/App.xcodeproj/project.pbxproj
+          if ! grep -q "CODE_SIGN_ENTITLEMENTS" "$PBX"; then
+            sed -i '' 's#PRODUCT_BUNDLE_IDENTIFIER = com.konishi.gridhunter;#CODE_SIGN_ENTITLEMENTS = App/App.entitlements; PRODUCT_BUNDLE_IDENTIFIER = com.konishi.gridhunter;#' "$PBX"
+          fi
+          grep -n "CODE_SIGN_ENTITLEMENTS" "$PBX"
+          plutil -lint ios/App/App/App.entitlements
       - name: Info.plist調整(暗号化申告・横画面固定・AdMob/ATT)
         script: |
           PLIST=ios/App/App/Info.plist
@@ -40,7 +59,7 @@ workflows:
           cd ios/App
           BUILD_NUMBER=$(($(app-store-connect get-latest-testflight-build-number "$APP_APPLE_ID" 2>/dev/null || echo 0) + 1))
           agvtool new-version -all $BUILD_NUMBER
-          agvtool new-marketing-version 1.3
+          agvtool new-marketing-version 1.4
       - name: 署名設定を適用
         script: xcode-project use-profiles
       - name: IPAをビルド
