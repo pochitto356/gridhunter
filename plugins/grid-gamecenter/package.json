@@ -1,0 +1,13 @@
+{
+  "name": "grid-gamecenter",
+  "version": "1.0.0",
+  "description": "GRID HUNTER 専用の Game Center プラグイン(サインイン・スコア送信・順位取得・ランキング画面)",
+  "private": true,
+  "main": "index.js",
+  "capacitor": {
+    "ios": { "src": "ios" }
+  },
+  "peerDependencies": {
+    "@capacitor/core": "^7.0.0"
+  }
+}
