@@ -13,7 +13,8 @@
     "@capacitor/core": "^7.0.0",
     "@capacitor-community/admob": "^7.0.0",
     "cordova-plugin-purchase": "^13.12.0",
-    "@capacitor/ios": "^7.0.0"
+    "@capacitor/ios": "^7.0.0",
+    "grid-gamecenter": "file:plugins/grid-gamecenter"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.0.0",
